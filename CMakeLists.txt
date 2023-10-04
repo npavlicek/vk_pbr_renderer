@@ -11,8 +11,8 @@ find_package(glfw3 REQUIRED)
 add_executable(vk_pbr_renderer main.cpp
         app.cpp
         app.h
-        vlayers_util.cpp
-        vlayers_util.h)
+        vk_init_utils.cpp
+        vk_init_utils.h)
 
 target_link_libraries(vk_pbr_renderer Vulkan::Vulkan)
 target_link_libraries(vk_pbr_renderer glfw)

@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "vlayers_util.h"
+#include "vk_init_utils.h"
 
 namespace lvk {
 	class app {
@@ -22,9 +22,21 @@ namespace lvk {
 	private:
 		GLFWwindow *window = nullptr;
 		VkInstance instance;
+		VkDebugUtilsMessengerEXT debugMessenger;
 
 		void initVulkan();
 		void createInstance();
+		void setupDebugMessenger();
+
+		static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+				VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverityFlagBitsExt,
+				VkDebugUtilsMessageTypeFlagsEXT messageTypeFlagsExt,
+				const VkDebugUtilsMessengerCallbackDataEXT *callbackDataExt,
+				void *pUserData
+		) {
+			std::cout << "Validation layer: " << callbackDataExt->pMessage << std::endl;
+			return VK_FALSE;
+		}
 	};
 } // lvk
 

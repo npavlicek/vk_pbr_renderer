@@ -18,9 +18,25 @@ namespace lvk {
 		createInstance();
 	}
 
+	void app::setupDebugMessenger() {
+		VkDebugUtilsMessengerCreateInfoEXT createInfoExt;
+		createInfoExt.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfoExt.messageSeverity =
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfoExt.messageType =
+				VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfoExt.pfnUserCallback = debugCallback;
+
+		if (vk_init_utils::createDebugUtilsMessengerExt(instance, &createInfoExt, nullptr, &debugMessenger) !=
+		    VK_SUCCESS)
+			throw std::runtime_error("Could not create VkDebugUtilsMessengerEXT");
+	}
+
 	void app::createInstance() {
 #ifdef VLAYERS_ENABLED
-		if (!vlayers_util::checkValidationLayerSupport())
+		if (!vk_init_utils::checkValidationLayerSupport())
 			throw std::runtime_error("Validation layers were requested but are not available.");
 
 		std::cout << "Validation layers enabled" << std::endl;
@@ -38,16 +54,15 @@ namespace lvk {
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &applicationInfo;
 
-		const char **glfwExtensions;
-		uint32_t glfwExtensionCount = 0;
-		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-		createInfo.enabledExtensionCount = glfwExtensionCount;
-		createInfo.ppEnabledExtensionNames = glfwExtensions;
+		auto extensions = vk_init_utils::getRequiredExtensions();
+		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+		createInfo.ppEnabledExtensionNames = extensions.data();
+
 		createInfo.enabledLayerCount = 0;
 
 #ifdef VLAYERS_ENABLED
-		createInfo.enabledLayerCount = static_cast<uint32_t>(vlayers_util::validationLayers.size());
-		createInfo.ppEnabledLayerNames = vlayers_util::validationLayers.data();
+		createInfo.enabledLayerCount = static_cast<uint32_t>(vk_init_utils::validationLayers.size());
+		createInfo.ppEnabledLayerNames = vk_init_utils::validationLayers.data();
 #endif
 
 		if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
