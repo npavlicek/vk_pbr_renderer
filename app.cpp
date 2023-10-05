@@ -15,21 +15,31 @@ namespace lvk {
 	}
 
 	void app::initVulkan() {
+#ifdef VLAYERS_ENABLED
+		setupDebugMessenger();
+#endif
+
 		createInstance();
+
+#ifdef VLAYERS_ENABLED
+		createDebugMessenger();
+#endif
 	}
 
 	void app::setupDebugMessenger() {
-		VkDebugUtilsMessengerCreateInfoEXT createInfoExt;
-		createInfoExt.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		createInfoExt.messageSeverity =
+		debugUtilsMessengerCreateInfoExt.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		debugUtilsMessengerCreateInfoExt.messageSeverity =
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-		createInfoExt.messageType =
+		debugUtilsMessengerCreateInfoExt.messageType =
 				VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-		createInfoExt.pfnUserCallback = debugCallback;
+		debugUtilsMessengerCreateInfoExt.pfnUserCallback = debugCallback;
+	}
 
-		if (vk_init_utils::createDebugUtilsMessengerExt(instance, &createInfoExt, nullptr, &debugMessenger) !=
+	void app::createDebugMessenger() {
+		if (vk_init_utils::createDebugUtilsMessengerExt(instance, &debugUtilsMessengerCreateInfoExt, nullptr,
+		                                                &debugMessenger) !=
 		    VK_SUCCESS)
 			throw std::runtime_error("Could not create VkDebugUtilsMessengerEXT");
 	}
@@ -40,6 +50,8 @@ namespace lvk {
 			throw std::runtime_error("Validation layers were requested but are not available.");
 
 		std::cout << "Validation layers enabled" << std::endl;
+#else
+		std::cout << "Validation layers not enabled" << std::endl;
 #endif
 
 		VkApplicationInfo applicationInfo{};
@@ -63,6 +75,7 @@ namespace lvk {
 #ifdef VLAYERS_ENABLED
 		createInfo.enabledLayerCount = static_cast<uint32_t>(vk_init_utils::validationLayers.size());
 		createInfo.ppEnabledLayerNames = vk_init_utils::validationLayers.data();
+		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *) &debugUtilsMessengerCreateInfoExt;
 #endif
 
 		if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
@@ -77,6 +90,9 @@ namespace lvk {
 	}
 
 	void app::cleanup() {
+#ifdef VLAYERS_ENABLED
+		vk_init_utils::destroyDebugUtilsMessengerExt(instance, debugMessenger, nullptr);
+#endif
 		vkDestroyInstance(instance, nullptr);
 		glfwDestroyWindow(window);
 		glfwTerminate();

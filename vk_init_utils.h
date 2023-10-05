@@ -27,6 +27,8 @@ namespace lvk {
 		                                             const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
 		                                             const VkAllocationCallbacks *pAllocator,
 		                                             VkDebugUtilsMessengerEXT *pDebugMessenger);
+		static void destroyDebugUtilsMessengerExt(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+		                                          const VkAllocationCallbacks *pCallbacks);
 	};
 } // lvk
 

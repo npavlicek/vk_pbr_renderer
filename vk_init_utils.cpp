@@ -50,4 +50,12 @@ namespace lvk {
 			return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
 
+	void vk_init_utils::destroyDebugUtilsMessengerExt(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+	                                                  const VkAllocationCallbacks *pCallbacks) {
+		auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance,
+		                                                                        "vkDestroyDebugUtilsMessengerEXT");
+		if (func != nullptr)
+			func(instance, debugMessenger, pCallbacks);
+	}
+
 } // lvk
