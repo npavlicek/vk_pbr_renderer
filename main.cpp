@@ -1,10 +1,10 @@
-#include "app.h"
+#include "App.h"
 
 #include <stdexcept>
 #include <iostream>
 
 int main() {
-	lvk::app app;
+	lvk::App app;
 	try {
 		app.init();
 		app.loop();

@@ -1,7 +1,7 @@
-#include "app.h"
+#include "App.h"
 
 namespace lvk {
-	void app::init() {
+	void App::init() {
 		if (!glfwInit())
 			throw std::runtime_error("Could not initialize GLFW.");
 
@@ -14,7 +14,7 @@ namespace lvk {
 			throw std::runtime_error("Could not create the GLFW window.");
 	}
 
-	void app::initVulkan() {
+	void App::initVulkan() {
 #ifdef VLAYERS_ENABLED
 		setupDebugMessenger();
 #endif
@@ -26,7 +26,7 @@ namespace lvk {
 #endif
 	}
 
-	void app::setupDebugMessenger() {
+	void App::setupDebugMessenger() {
 		debugUtilsMessengerCreateInfoExt.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		debugUtilsMessengerCreateInfoExt.messageSeverity =
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
@@ -35,16 +35,19 @@ namespace lvk {
 				VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		debugUtilsMessengerCreateInfoExt.pfnUserCallback = debugCallback;
+		debugUtilsMessengerCreateInfoExt.pNext = nullptr;
+		debugUtilsMessengerCreateInfoExt.pUserData = nullptr;
+		debugUtilsMessengerCreateInfoExt.flags = 0;
 	}
 
-	void app::createDebugMessenger() {
+	void App::createDebugMessenger() {
 		if (vk_init_utils::createDebugUtilsMessengerExt(instance, &debugUtilsMessengerCreateInfoExt, nullptr,
 		                                                &debugMessenger) !=
 		    VK_SUCCESS)
 			throw std::runtime_error("Could not create VkDebugUtilsMessengerEXT");
 	}
 
-	void app::createInstance() {
+	void App::createInstance() {
 #ifdef VLAYERS_ENABLED
 		if (!vk_init_utils::checkValidationLayerSupport())
 			throw std::runtime_error("Validation layers were requested but are not available.");
@@ -84,15 +87,70 @@ namespace lvk {
 		std::cout << "Created Vulkan instance, API version - " << applicationInfo.apiVersion << std::endl;
 	}
 
-	void app::loop() {
+	void App::loop() {
 		while (!glfwWindowShouldClose(window))
 			glfwPollEvents();
 	}
 
-	void app::cleanup() {
+	VKAPI_ATTR VkBool32 VKAPI_CALL App::debugCallback(
+			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverityFlagBitsExt,
+			VkDebugUtilsMessageTypeFlagsEXT messageTypeFlagsExt,
+			const VkDebugUtilsMessengerCallbackDataEXT *callbackDataExt,
+			void *pUserData
+	) {
+#ifdef VK_DEBUG_FILE_OUTPUT
+		auto old_stream = std::cout.rdbuf();
+		std::cout.rdbuf(file_stream.rdbuf());
+#endif
+		switch (messageTypeFlagsExt) {
+			case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+				std::cout << "[VkDebugUtils-General]: ";
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+				std::cout << "[VkDebugUtils-Validation]: ";
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+				std::cout << "[VkDebugUtils-Performance]: ";
+				break;
+			default:
+				std::cout << "[VkDebugUtils-Unknown]: ";
+		}
+		switch (messageSeverityFlagBitsExt) {
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+				ANSI_COLOR_WHITE
+				std::cout << "INFO - ";
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+				ANSI_COLOR_CYAN
+				std::cout << "VERBOSE - ";
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+				ANSI_COLOR_RED
+				std::cout << "ERROR - ";
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+				ANSI_COLOR_YELLOW
+				std::cout << "WARNING - ";
+				break;
+			default:
+				ANSI_COLOR_MAGENTA
+				std::cout << "UNKNOWN SEVERITY - ";
+		}
+		std::cout << callbackDataExt->pMessage << std::endl;
+		ANSI_COLOR_RESET
+
+#ifdef VK_DEBUG_FILE_OUTPUT
+		std::cout.rdbuf(old_stream);
+#endif
+
+		return VK_FALSE;
+	}
+
+	void App::cleanup() {
 #ifdef VLAYERS_ENABLED
 		vk_init_utils::destroyDebugUtilsMessengerExt(instance, debugMessenger, nullptr);
 #endif
+
 		vkDestroyInstance(instance, nullptr);
 		glfwDestroyWindow(window);
 		glfwTerminate();
