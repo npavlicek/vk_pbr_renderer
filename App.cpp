@@ -25,7 +25,10 @@ namespace lvk {
 		createDebugMessenger();
 #endif
 
-		physicalDevice = vk_device_utils::pickDevice(instance);
+		physicalDevice = VkDeviceUtils::pickDevice(instance);
+		queueFamilyIndices queueFamilyIndices = VkDeviceUtils::findQueueFamilyIndices(physicalDevice);
+		VkDeviceUtils::createLogicalDevice(&logicalDevice, physicalDevice, queueFamilyIndices);
+		vkGetDeviceQueue(logicalDevice, queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
 	}
 
 	void App::setupDebugMessenger() {
@@ -43,15 +46,15 @@ namespace lvk {
 	}
 
 	void App::createDebugMessenger() {
-		if (vk_init_utils::createDebugUtilsMessengerExt(instance, &debugUtilsMessengerCreateInfoExt, nullptr,
-		                                                &debugMessenger) !=
+		if (VkInitUtils::createDebugUtilsMessengerExt(instance, &debugUtilsMessengerCreateInfoExt, nullptr,
+		                                              &debugMessenger) !=
 		    VK_SUCCESS)
 			throw std::runtime_error("Could not create VkDebugUtilsMessengerEXT");
 	}
 
 	void App::createInstance() {
 #ifdef VLAYERS_ENABLED
-		if (!vk_init_utils::checkValidationLayerSupport())
+		if (!VkInitUtils::checkValidationLayerSupport())
 			throw std::runtime_error("Validation layers were requested but are not available.");
 
 		std::cout << "Validation layers enabled" << std::endl;
@@ -65,21 +68,21 @@ namespace lvk {
 		applicationInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
 		applicationInfo.pEngineName = "idk";
 		applicationInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-		applicationInfo.apiVersion = VK_API_VERSION_1_0;
+		applicationInfo.apiVersion = VK_API_VERSION_1_3;
 
 		VkInstanceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &applicationInfo;
 
-		auto extensions = vk_init_utils::getRequiredExtensions();
+		auto extensions = VkInitUtils::getRequiredExtensions();
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
 		createInfo.enabledLayerCount = 0;
 
 #ifdef VLAYERS_ENABLED
-		createInfo.enabledLayerCount = static_cast<uint32_t>(vk_init_utils::validationLayers.size());
-		createInfo.ppEnabledLayerNames = vk_init_utils::validationLayers.data();
+		createInfo.enabledLayerCount = static_cast<uint32_t>(VkInitUtils::validationLayers.size());
+		createInfo.ppEnabledLayerNames = VkInitUtils::validationLayers.data();
 		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *) &debugUtilsMessengerCreateInfoExt;
 #endif
 
@@ -150,9 +153,10 @@ namespace lvk {
 
 	void App::cleanup() {
 #ifdef VLAYERS_ENABLED
-		vk_init_utils::destroyDebugUtilsMessengerExt(instance, debugMessenger, nullptr);
+		VkInitUtils::destroyDebugUtilsMessengerExt(instance, debugMessenger, nullptr);
 #endif
 
+		vkDestroyDevice(logicalDevice, nullptr);
 		vkDestroyInstance(instance, nullptr);
 		glfwDestroyWindow(window);
 		glfwTerminate();

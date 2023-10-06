@@ -1,7 +1,7 @@
-#include "vk_init_utils.h"
+#include "VkInitUtils.h"
 
 namespace lvk {
-	bool vk_init_utils::checkValidationLayerSupport() {
+	bool VkInitUtils::checkValidationLayerSupport() {
 		uint32_t layerCount;
 		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
@@ -25,7 +25,7 @@ namespace lvk {
 		return true;
 	}
 
-	std::vector<const char *> vk_init_utils::getRequiredExtensions() {
+	std::vector<const char *> VkInitUtils::getRequiredExtensions() {
 		uint32_t glfwExtensionCount = 0;
 		const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
@@ -38,10 +38,10 @@ namespace lvk {
 		return extensions;
 	}
 
-	VkResult vk_init_utils::createDebugUtilsMessengerExt(VkInstance instance,
-	                                                     const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-	                                                     const VkAllocationCallbacks *pAllocator,
-	                                                     VkDebugUtilsMessengerEXT *pDebugMessenger) {
+	VkResult VkInitUtils::createDebugUtilsMessengerExt(VkInstance instance,
+	                                                   const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+	                                                   const VkAllocationCallbacks *pAllocator,
+	                                                   VkDebugUtilsMessengerEXT *pDebugMessenger) {
 		auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance,
 		                                                                       "vkCreateDebugUtilsMessengerEXT");
 		if (func != nullptr)
@@ -50,8 +50,8 @@ namespace lvk {
 			return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
 
-	void vk_init_utils::destroyDebugUtilsMessengerExt(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
-	                                                  const VkAllocationCallbacks *pCallbacks) {
+	void VkInitUtils::destroyDebugUtilsMessengerExt(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+	                                                const VkAllocationCallbacks *pCallbacks) {
 		auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance,
 		                                                                        "vkDestroyDebugUtilsMessengerEXT");
 		if (func != nullptr)

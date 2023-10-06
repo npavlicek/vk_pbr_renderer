@@ -1,5 +1,5 @@
-#ifndef VK_PBR_RENDERER_VK_INIT_UTILS_H
-#define VK_PBR_RENDERER_VK_INIT_UTILS_H
+#ifndef VK_PBR_RENDERER_VKINITUTILS_H
+#define VK_PBR_RENDERER_VKINITUTILS_H
 
 #ifndef NDEBUG
 #define VLAYERS_ENABLED
@@ -17,7 +17,7 @@ namespace lvk {
 	/**
 	 * Utilities class for initializing validation layers
 	 */
-	class vk_init_utils {
+	class VkInitUtils {
 	public:
 		const static inline std::vector<const char *> validationLayers{"VK_LAYER_KHRONOS_validation"};
 
@@ -32,4 +32,4 @@ namespace lvk {
 	};
 } // lvk
 
-#endif //VK_PBR_RENDERER_VK_INIT_UTILS_H
+#endif //VK_PBR_RENDERER_VKINITUTILS_H

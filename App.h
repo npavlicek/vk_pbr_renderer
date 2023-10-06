@@ -11,8 +11,8 @@
 #include <fstream>
 #include <string>
 
-#include "vk_init_utils.h"
-#include "vk_device_utils.h"
+#include "VkInitUtils.h"
+#include "VkDeviceUtils.h"
 
 //#define VK_DEBUG_FILE_OUTPUT
 #define ENABLE_ANSI_COLORS
@@ -30,9 +30,11 @@ namespace lvk {
 	private:
 		GLFWwindow *window = nullptr;
 		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+		VkDevice logicalDevice = VK_NULL_HANDLE;
 		VkInstance instance{};
 		VkDebugUtilsMessengerEXT debugMessenger{};
 		VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoExt{};
+		VkQueue graphicsQueue;
 
 #ifdef VK_DEBUG_FILE_OUTPUT
 		static const auto inline file_stream = std::ofstream("log");

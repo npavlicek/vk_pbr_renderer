@@ -11,11 +11,11 @@ find_package(glfw3 REQUIRED)
 add_executable(vk_pbr_renderer main.cpp
         App.cpp
         App.h
-        vk_init_utils.cpp
-        vk_init_utils.h
+        VkInitUtils.cpp
+        VkInitUtils.h
         ansi_color_defs.h
-        vk_device_utils.cpp
-        vk_device_utils.h)
+        VkDeviceUtils.cpp
+        VkDeviceUtils.h)
 
 target_link_libraries(vk_pbr_renderer Vulkan::Vulkan)
 target_link_libraries(vk_pbr_renderer glfw)
