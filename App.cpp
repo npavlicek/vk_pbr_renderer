@@ -24,6 +24,8 @@ namespace lvk {
 #ifdef VLAYERS_ENABLED
 		createDebugMessenger();
 #endif
+
+		physicalDevice = vk_device_utils::pickDevice(instance);
 	}
 
 	void App::setupDebugMessenger() {

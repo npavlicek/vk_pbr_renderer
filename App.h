@@ -12,6 +12,7 @@
 #include <string>
 
 #include "vk_init_utils.h"
+#include "vk_device_utils.h"
 
 //#define VK_DEBUG_FILE_OUTPUT
 #define ENABLE_ANSI_COLORS
@@ -28,6 +29,7 @@ namespace lvk {
 
 	private:
 		GLFWwindow *window = nullptr;
+		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 		VkInstance instance{};
 		VkDebugUtilsMessengerEXT debugMessenger{};
 		VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoExt{};

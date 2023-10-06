@@ -13,7 +13,9 @@ add_executable(vk_pbr_renderer main.cpp
         App.h
         vk_init_utils.cpp
         vk_init_utils.h
-        ansi_color_defs.h)
+        ansi_color_defs.h
+        vk_device_utils.cpp
+        vk_device_utils.h)
 
 target_link_libraries(vk_pbr_renderer Vulkan::Vulkan)
 target_link_libraries(vk_pbr_renderer glfw)
