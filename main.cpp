@@ -1,16 +1,8 @@
-#include "App.h"
+#include "VR.h"
 
-#include <stdexcept>
-#include <iostream>
+#define log_error(type, what) std::cerr << "Encountered a " << type << " error: " << what << std::endl;
 
 int main() {
-	lvk::App app;
-	try {
-		app.init();
-		app.loop();
-		app.cleanup();
-	} catch (const std::exception &e) {
-		std::cerr << "error encountered:\n" << e.what() << std::endl;
-	}
+	pbr::VR vulkanRenderer;
 	return 0;
 }
