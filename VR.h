@@ -3,6 +3,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vk_enum_string_helper.h>
+#include <GLFW/glfw3.h>
 #include <exception>
 #include <iostream>
 
@@ -12,6 +13,14 @@ namespace pbr {
 		VkPhysicalDevice physicalDevice;
 		VkDevice device;
 		std::vector<VkQueue> queues;
+		VkSurfaceKHR surface;
+		VkSwapchainKHR swapchain;
+		std::vector<VkImage> swapchainImages;
+	};
+
+	struct SwapchainInfo {
+		VkSurfaceFormatKHR format;
+		VkPresentModeKHR presentMode;
 	};
 
 	struct QueueFamily {
@@ -21,13 +30,18 @@ namespace pbr {
 
 	class VR {
 	public:
-		VR();
+		VR(GLFWwindow *window);
 		~VR();
+		VulkanHandles getHandles();
+		void generateSwapchain();
 
 	private:
 		VulkanHandles handles{};
+		SwapchainInfo swapchainInfo{};
+		GLFWwindow *window;
 
-		QueueFamily selectQueueFamily() const;
+		void setSwapchainImages();
+		QueueFamily getQueueFamily() const;
 		void setPhysicalDevice();
 		static void checkResult(VkResult result);
 	};
