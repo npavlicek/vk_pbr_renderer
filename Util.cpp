@@ -18,9 +18,7 @@ namespace util {
 			enabledExtensions.push_back(glfwExtensions[i]);
 		}
 
-		enabledExtensions.push_back("VK_KHR_get_surface_capabilities2");
-
-		auto applicationInfo = vk::ApplicationInfo(
+		vk::ApplicationInfo applicationInfo(
 				applicationName,
 				1,
 				engineName,
@@ -29,7 +27,7 @@ namespace util {
 		);
 
 
-		auto instanceCreateInfo = vk::InstanceCreateInfo(
+		vk::InstanceCreateInfo instanceCreateInfo(
 				{},
 				&applicationInfo,
 				enabledLayers.size(),
