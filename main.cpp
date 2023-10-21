@@ -23,7 +23,7 @@ void beginRenderPass(
 		vk::raii::RenderPass &renderPass,
 		vk::Rect2D renderArea
 ) {
-	vk::ClearValue clearValue{vk::ClearColorValue{1, 0, 0, 1}};
+	std::vector<vk::ClearValue> clearValue{vk::ClearColorValue{0.15f, 0.f, 0.5f, 1.f}};
 
 	vk::RenderPassBeginInfo renderPassBeginInfo;
 	renderPassBeginInfo.setClearValueCount(1);
