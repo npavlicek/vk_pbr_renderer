@@ -301,8 +301,10 @@ namespace util {
 		fragmentShaderStageCreateInfo.setPName("main");
 		fragmentShaderStageCreateInfo.setStage(vk::ShaderStageFlagBits::eFragment);
 
-		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{vertexShaderStageCreateInfo,
-		                                                            fragmentShaderStageCreateInfo};
+		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{
+				vertexShaderStageCreateInfo,
+				fragmentShaderStageCreateInfo
+		};
 
 		// Fixed Functions
 
@@ -445,11 +447,21 @@ namespace util {
 		subpassDescription.setColorAttachmentCount(1);
 		subpassDescription.setColorAttachments(attachmentReference);
 
+		vk::SubpassDependency subpassDependency;
+		subpassDependency.setSrcSubpass(vk::SubpassExternal);
+		subpassDependency.setDstSubpass(0);
+		subpassDependency.setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eNone);
+		subpassDependency.setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+		subpassDependency.setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+
 		vk::RenderPassCreateInfo renderPassCreateInfo;
 		renderPassCreateInfo.setAttachmentCount(1);
 		renderPassCreateInfo.setAttachments(attachmentDescription);
 		renderPassCreateInfo.setSubpassCount(1);
 		renderPassCreateInfo.setSubpasses(subpassDescription);
+		renderPassCreateInfo.setDependencies(subpassDependency);
+		renderPassCreateInfo.setDependencyCount(1);
 
 		return {device, renderPassCreateInfo};
 	}
