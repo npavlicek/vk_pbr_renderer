@@ -170,6 +170,7 @@ namespace util {
 	) {
 		vk::CommandPoolCreateInfo commandPoolCreateInfo;
 		commandPoolCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
+		commandPoolCreateInfo.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
 		return {device, commandPoolCreateInfo};
 	}
@@ -284,6 +285,7 @@ namespace util {
 
 	vk::raii::Pipeline createPipeline(
 			vk::raii::Device &device,
+			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities,
 			vk::SurfaceFormatKHR surfaceFormat
@@ -377,6 +379,52 @@ namespace util {
 				pipelineLayoutCreateInfo
 		);
 
+		vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo;
+		graphicsPipelineCreateInfo.setLayout(*pipelineLayout);
+		graphicsPipelineCreateInfo.setRenderPass(*renderPass);
+		graphicsPipelineCreateInfo.setStageCount(shaderStages.size());
+		graphicsPipelineCreateInfo.setStages(shaderStages);
+		graphicsPipelineCreateInfo.setPColorBlendState(&pipelineColorBlendStateCreateInfo);
+		graphicsPipelineCreateInfo.setPDynamicState(&pipelineDynamicStateCreateInfo);
+		graphicsPipelineCreateInfo.setPInputAssemblyState(&pipelineInputAssemblyStateCreateInfo);
+		graphicsPipelineCreateInfo.setPMultisampleState(&pipelineMultisampleStateCreateInfo);
+		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
+		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
+		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
+
+		return {device, VK_NULL_HANDLE, graphicsPipelineCreateInfo};
+	}
+
+	std::vector<vk::raii::Framebuffer> createFrameBuffers(
+			vk::raii::Device &device,
+			vk::raii::RenderPass &renderPass,
+			std::vector<vk::raii::ImageView> &imageViews,
+			vk::SurfaceCapabilitiesKHR surfaceCapabilities
+	) {
+		std::vector<vk::raii::Framebuffer> frameBuffers;
+
+		vk::FramebufferCreateInfo framebufferCreateInfo;
+		framebufferCreateInfo.setRenderPass(*renderPass);
+		framebufferCreateInfo.setLayers(1);
+		framebufferCreateInfo.setWidth(surfaceCapabilities.currentExtent.width);
+		framebufferCreateInfo.setHeight(surfaceCapabilities.currentExtent.height);
+
+		for (auto &imageView: imageViews) {
+			framebufferCreateInfo.setAttachments(*imageView);
+			framebufferCreateInfo.setAttachmentCount(1);
+			frameBuffers.emplace_back(
+					device,
+					framebufferCreateInfo
+			);
+		}
+
+		return frameBuffers;
+	}
+
+	vk::raii::RenderPass createRenderPass(
+			vk::raii::Device &device,
+			vk::SurfaceFormatKHR surfaceFormat
+	) {
 		// Render Pass
 		vk::AttachmentDescription attachmentDescription;
 		attachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
@@ -403,30 +451,6 @@ namespace util {
 		renderPassCreateInfo.setSubpassCount(1);
 		renderPassCreateInfo.setSubpasses(subpassDescription);
 
-		vk::raii::RenderPass renderPass(
-				device,
-				renderPassCreateInfo
-		);
-
-		vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo;
-		graphicsPipelineCreateInfo.setLayout(*pipelineLayout);
-		graphicsPipelineCreateInfo.setRenderPass(*renderPass);
-		graphicsPipelineCreateInfo.setStageCount(shaderStages.size());
-		graphicsPipelineCreateInfo.setStages(shaderStages);
-		graphicsPipelineCreateInfo.setPColorBlendState(&pipelineColorBlendStateCreateInfo);
-		graphicsPipelineCreateInfo.setPDynamicState(&pipelineDynamicStateCreateInfo);
-		graphicsPipelineCreateInfo.setPInputAssemblyState(&pipelineInputAssemblyStateCreateInfo);
-		graphicsPipelineCreateInfo.setPMultisampleState(&pipelineMultisampleStateCreateInfo);
-		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
-		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
-		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
-
-		vk::raii::Pipeline pipeline(
-				device,
-				VK_NULL_HANDLE,
-				graphicsPipelineCreateInfo
-		);
-
-		return pipeline;
+		return {device, renderPassCreateInfo};
 	}
 } // pbr

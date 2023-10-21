@@ -86,21 +86,33 @@ int main() {
 			commandPool,
 			1
 	);
-
 	auto shaderModules = util::createShaderModules(
 			device,
 			"shaders/vert.spv",
 			"shaders/frag.spv"
 	);
-
+	auto renderPass = util::createRenderPass(
+			device,
+			swapChainFormat
+	);
 	auto pipeline = util::createPipeline(
 			device,
+			renderPass,
 			shaderModules,
 			surfaceCapabilities,
 			swapChainFormat
 	);
+	auto frameBuffers = util::createFrameBuffers(
+			device,
+			renderPass,
+			imageViews,
+			surfaceCapabilities
+	);
 
+	
 	while (!glfwWindowShouldClose(window)) {
+
+
 		glfwPollEvents();
 	}
 

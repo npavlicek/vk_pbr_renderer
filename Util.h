@@ -60,9 +60,20 @@ namespace util {
 	);
 	vk::raii::Pipeline createPipeline(
 			vk::raii::Device &device,
+			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities,
 			vk::SurfaceFormatKHR surfaceFormat
+	);
+	vk::raii::RenderPass createRenderPass(
+			vk::raii::Device &device,
+			vk::SurfaceFormatKHR surfaceFormat
+	);
+	std::vector<vk::raii::Framebuffer> createFrameBuffers(
+			vk::raii::Device &device,
+			vk::raii::RenderPass &renderPass,
+			std::vector<vk::raii::ImageView> &imageViews,
+			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	);
 } // util
 
