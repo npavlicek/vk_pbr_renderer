@@ -259,15 +259,13 @@ namespace util {
 		auto vertexShaderCode = loadShaderCode(vertexShaderPath);
 		auto fragmentShaderCode = loadShaderCode(fragmentShaderPath);
 
-		std::cout << vertexShaderCode.size() << std::endl;
-
 		vk::ShaderModuleCreateInfo vertexShaderModuleCreateInfo;
 		vertexShaderModuleCreateInfo.setCode(vertexShaderCode);
-		vertexShaderModuleCreateInfo.setCodeSize(vertexShaderCode.size() * 4);
+		vertexShaderModuleCreateInfo.setCodeSize(vertexShaderCode.size() * sizeof(uint32_t));
 
 		vk::ShaderModuleCreateInfo fragmentShaderModuleCreateInfo;
 		fragmentShaderModuleCreateInfo.setCode(fragmentShaderCode);
-		fragmentShaderModuleCreateInfo.setCodeSize(fragmentShaderCode.size() * 4);
+		fragmentShaderModuleCreateInfo.setCodeSize(fragmentShaderCode.size() * sizeof(uint32_t));
 
 		std::vector<vk::raii::ShaderModule> res;
 
@@ -287,7 +285,8 @@ namespace util {
 	vk::raii::Pipeline createPipeline(
 			vk::raii::Device &device,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
-			vk::SurfaceCapabilitiesKHR surfaceCapabilities
+			vk::SurfaceCapabilitiesKHR surfaceCapabilities,
+			vk::SurfaceFormatKHR surfaceFormat
 	) {
 		// Shader Stages
 		vk::PipelineShaderStageCreateInfo vertexShaderStageCreateInfo;
@@ -380,10 +379,14 @@ namespace util {
 
 		// Render Pass
 		vk::AttachmentDescription attachmentDescription;
+		attachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
+		attachmentDescription.setStoreOp(vk::AttachmentStoreOp::eStore);
 		attachmentDescription.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
 		attachmentDescription.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
 		attachmentDescription.setInitialLayout(vk::ImageLayout::eUndefined);
 		attachmentDescription.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+		attachmentDescription.setSamples(vk::SampleCountFlagBits::e1);
+		attachmentDescription.setFormat(surfaceFormat.format);
 
 		vk::AttachmentReference attachmentReference;
 		attachmentReference.setAttachment(0);

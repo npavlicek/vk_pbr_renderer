@@ -96,7 +96,8 @@ int main() {
 	auto pipeline = util::createPipeline(
 			device,
 			shaderModules,
-			surfaceCapabilities
+			surfaceCapabilities,
+			swapChainFormat
 	);
 
 	while (!glfwWindowShouldClose(window)) {
