@@ -27,17 +27,14 @@ namespace util {
 		);
 
 
-		vk::InstanceCreateInfo instanceCreateInfo(
-				{},
-				&applicationInfo,
-				enabledLayers.size(),
-				enabledLayers.data(),
-				enabledExtensions.size(),
-				enabledExtensions.data(),
-				nullptr
-		);
+		vk::InstanceCreateInfo instanceCreateInfo;
+		instanceCreateInfo.setPApplicationInfo(&applicationInfo);
+		instanceCreateInfo.setEnabledLayerCount(enabledLayers.size());
+		instanceCreateInfo.setPEnabledLayerNames(enabledLayers);
+		instanceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
+		instanceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
-		return context.createInstance(instanceCreateInfo);
+		return {context, instanceCreateInfo};
 	}
 
 	vk::raii::PhysicalDevice selectPhysicalDevice(
@@ -262,13 +259,15 @@ namespace util {
 		auto vertexShaderCode = loadShaderCode(vertexShaderPath);
 		auto fragmentShaderCode = loadShaderCode(fragmentShaderPath);
 
+		std::cout << vertexShaderCode.size() << std::endl;
+
 		vk::ShaderModuleCreateInfo vertexShaderModuleCreateInfo;
 		vertexShaderModuleCreateInfo.setCode(vertexShaderCode);
-		vertexShaderModuleCreateInfo.setCodeSize(vertexShaderCode.size());
+		vertexShaderModuleCreateInfo.setCodeSize(vertexShaderCode.size() * 4);
 
 		vk::ShaderModuleCreateInfo fragmentShaderModuleCreateInfo;
 		fragmentShaderModuleCreateInfo.setCode(fragmentShaderCode);
-		fragmentShaderModuleCreateInfo.setCodeSize(fragmentShaderCode.size());
+		fragmentShaderModuleCreateInfo.setCodeSize(fragmentShaderCode.size() * 4);
 
 		std::vector<vk::raii::ShaderModule> res;
 
@@ -287,7 +286,7 @@ namespace util {
 
 	vk::raii::Pipeline createPipeline(
 			vk::raii::Device &device,
-			std::vector<vk::raii::ShaderModule> shaderModules,
+			std::vector<vk::raii::ShaderModule> &shaderModules,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	) {
 		// Shader Stages
@@ -300,6 +299,9 @@ namespace util {
 		fragmentShaderStageCreateInfo.setModule(*shaderModules[1]);
 		fragmentShaderStageCreateInfo.setPName("main");
 		fragmentShaderStageCreateInfo.setStage(vk::ShaderStageFlagBits::eFragment);
+
+		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{vertexShaderStageCreateInfo,
+		                                                            fragmentShaderStageCreateInfo};
 
 		// Fixed Functions
 
@@ -371,7 +373,57 @@ namespace util {
 
 		// Pipeline Layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
+		vk::raii::PipelineLayout pipelineLayout(
+				device,
+				pipelineLayoutCreateInfo
+		);
 
-		vk::raii::PipelineLayout pipelineLayout = device.createPipelineLayout(pipelineLayoutCreateInfo);
+		// Render Pass
+		vk::AttachmentDescription attachmentDescription;
+		attachmentDescription.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
+		attachmentDescription.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
+		attachmentDescription.setInitialLayout(vk::ImageLayout::eUndefined);
+		attachmentDescription.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+
+		vk::AttachmentReference attachmentReference;
+		attachmentReference.setAttachment(0);
+		attachmentReference.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
+
+		vk::SubpassDescription subpassDescription;
+		subpassDescription.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
+		subpassDescription.setColorAttachmentCount(1);
+		subpassDescription.setColorAttachments(attachmentReference);
+
+		vk::RenderPassCreateInfo renderPassCreateInfo;
+		renderPassCreateInfo.setAttachmentCount(1);
+		renderPassCreateInfo.setAttachments(attachmentDescription);
+		renderPassCreateInfo.setSubpassCount(1);
+		renderPassCreateInfo.setSubpasses(subpassDescription);
+
+		vk::raii::RenderPass renderPass(
+				device,
+				renderPassCreateInfo
+		);
+
+		vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo;
+		graphicsPipelineCreateInfo.setLayout(*pipelineLayout);
+		graphicsPipelineCreateInfo.setRenderPass(*renderPass);
+		graphicsPipelineCreateInfo.setStageCount(shaderStages.size());
+		graphicsPipelineCreateInfo.setStages(shaderStages);
+		graphicsPipelineCreateInfo.setPColorBlendState(&pipelineColorBlendStateCreateInfo);
+		graphicsPipelineCreateInfo.setPDynamicState(&pipelineDynamicStateCreateInfo);
+		graphicsPipelineCreateInfo.setPInputAssemblyState(&pipelineInputAssemblyStateCreateInfo);
+		graphicsPipelineCreateInfo.setPMultisampleState(&pipelineMultisampleStateCreateInfo);
+		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
+		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
+		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
+
+		vk::raii::Pipeline pipeline(
+				device,
+				VK_NULL_HANDLE,
+				graphicsPipelineCreateInfo
+		);
+
+		return pipeline;
 	}
 } // pbr

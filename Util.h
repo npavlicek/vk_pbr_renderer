@@ -60,7 +60,7 @@ namespace util {
 	);
 	vk::raii::Pipeline createPipeline(
 			vk::raii::Device &device,
-			std::vector<vk::raii::ShaderModule> shaderModules,
+			std::vector<vk::raii::ShaderModule> &shaderModules,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	);
 } // util

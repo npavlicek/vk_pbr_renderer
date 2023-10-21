@@ -44,7 +44,6 @@ int main() {
 	);
 
 	vk::raii::Context context;
-
 	auto instance = util::createInstance(
 			context,
 			"Vulkan PBR Renderer",
@@ -92,6 +91,12 @@ int main() {
 			device,
 			"shaders/vert.spv",
 			"shaders/frag.spv"
+	);
+
+	auto pipeline = util::createPipeline(
+			device,
+			shaderModules,
+			surfaceCapabilities
 	);
 
 	while (!glfwWindowShouldClose(window)) {
