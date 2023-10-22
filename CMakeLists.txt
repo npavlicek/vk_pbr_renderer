@@ -8,10 +8,18 @@ set(CMAKE_PREFIX_PATH "lib/cmake")
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_executable(vk_pbr_renderer main.cpp
-        ansi_color_defs.h
-        Util.cpp
-        Util.h)
+include_directories(
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/imgui
+        ${PROJECT_SOURCE_DIR}/imgui/backends
+)
+
+file(GLOB proj_srcs
+        "${PROJECT_SOURCE_DIR}/*.cpp"
+        "${PROJECT_SOURCE_DIR}/imgui/*.cpp"
+        "${PROJECT_SOURCE_DIR}/imgui/backends/*.cpp")
+
+add_executable(vk_pbr_renderer ${proj_srcs})
 
 target_link_libraries(vk_pbr_renderer Vulkan::Vulkan)
 target_link_libraries(vk_pbr_renderer glfw)

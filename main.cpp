@@ -2,6 +2,10 @@
 
 #include <vulkan/vulkan_to_string.hpp>
 
+#include <imgui.h>
+#include <imgui/backends/imgui_impl_vulkan.h>
+#include <imgui/backends/imgui_impl_win32.h>
+
 void keyCallback(
 		GLFWwindow *window,
 		int key,
@@ -23,7 +27,7 @@ void beginRenderPass(
 		vk::raii::RenderPass &renderPass,
 		vk::Rect2D renderArea
 ) {
-	std::vector<vk::ClearValue> clearValue{vk::ClearColorValue{0.15f, 0.f, 0.5f, 1.f}};
+	vk::ClearValue clearValue{vk::ClearColorValue{.15f, 0.f, .25f, 1.f}};
 
 	vk::RenderPassBeginInfo renderPassBeginInfo;
 	renderPassBeginInfo.setClearValueCount(1);
