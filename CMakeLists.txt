@@ -17,9 +17,12 @@ include_directories(
 file(GLOB proj_srcs
         "${PROJECT_SOURCE_DIR}/*.cpp"
         "${PROJECT_SOURCE_DIR}/imgui/*.cpp"
-        "${PROJECT_SOURCE_DIR}/imgui/backends/*.cpp")
+)
 
-add_executable(vk_pbr_renderer ${proj_srcs})
+add_executable(vk_pbr_renderer ${proj_srcs}
+        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_opengl3.cpp"
+        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_glfw.cpp"
+)
 
 target_link_libraries(vk_pbr_renderer Vulkan::Vulkan)
 target_link_libraries(vk_pbr_renderer glfw)

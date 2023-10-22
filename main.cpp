@@ -3,8 +3,8 @@
 #include <vulkan/vulkan_to_string.hpp>
 
 #include <imgui.h>
-#include <imgui/backends/imgui_impl_vulkan.h>
-#include <imgui/backends/imgui_impl_win32.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 
 void keyCallback(
 		GLFWwindow *window,
@@ -132,10 +132,43 @@ int main() {
 			nullptr
 	);
 
+	glfwDefaultWindowHints();
+	glfwWindowHint(
+			GLFW_CLIENT_API,
+			GLFW_OPENGL_API
+	);
+	GLFWwindow *secondWindow = glfwCreateWindow(
+			700,
+			700,
+			"Testing",
+			nullptr,
+			nullptr
+	);
+
+	if (!secondWindow) {
+		std::cerr << "Error opening second window!" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+
 	glfwSetKeyCallback(
 			window,
 			keyCallback
 	);
+	glfwSetKeyCallback(
+			secondWindow,
+			keyCallback
+	);
+
+
+	glfwMakeContextCurrent(secondWindow);
+	auto imguiContext = ImGui::CreateContext();
+	ImGui_ImplGlfw_InitForOpenGL(
+			secondWindow,
+			true
+	);
+	ImGui_ImplOpenGL3_Init();
+	glfwMakeContextCurrent(nullptr);
 
 	vk::raii::Context context;
 	auto instance = util::createInstance(
@@ -210,14 +243,44 @@ int main() {
 
 	vk::SemaphoreCreateInfo semaphoreCreateInfo;
 	auto imageAvailableSemaphore = device.createSemaphore(semaphoreCreateInfo);
-	auto renderFinishedSempahore = device.createSemaphore(semaphoreCreateInfo);
+	auto renderFinishedSemaphore = device.createSemaphore(semaphoreCreateInfo);
 
 	vk::FenceCreateInfo fenceCreateInfo{
 			vk::FenceCreateFlagBits::eSignaled
 	};
 	auto fence = device.createFence(fenceCreateInfo);
 
-	while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(secondWindow)) {
+		glfwPollEvents();
+
+		glfwMakeContextCurrent(secondWindow);
+		ImGui_ImplGlfw_NewFrame();
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui::NewFrame();
+		bool window_active = false;
+		ImGui::Begin(
+				"Test Window",
+				&window_active,
+				ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize
+		);
+		if (ImGui::BeginMenuBar()) {
+			if (ImGui::BeginMenu("Testing")) {
+				ImGui::MenuItem("Test1");
+				ImGui::MenuItem("Test1");
+				ImGui::MenuItem("Test1");
+				ImGui::MenuItem("Test1");
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Menu 2")) {
+				ImGui::MenuItem("What the fuck");
+				ImGui::MenuItem("fskjfjnsdkl");
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenuBar();
+		}
+		ImGui::End();
+		glfwMakeContextCurrent(nullptr);
+
 		auto res = device.waitForFences(
 				*fence,
 				VK_TRUE,
@@ -253,7 +316,7 @@ int main() {
 		submitInfo.setCommandBufferCount(1);
 		submitInfo.setCommandBuffers(*commandBuffers[0]);
 		submitInfo.setSignalSemaphoreCount(1);
-		submitInfo.setSignalSemaphores(*renderFinishedSempahore);
+		submitInfo.setSignalSemaphores(*renderFinishedSemaphore);
 
 		queue.submit(
 				submitInfo,
@@ -265,13 +328,26 @@ int main() {
 		presentInfo.setSwapchains(*swapChain);
 		presentInfo.setImageIndices(imageIndex);
 		presentInfo.setWaitSemaphoreCount(1);
-		presentInfo.setWaitSemaphores(*renderFinishedSempahore);
+		presentInfo.setWaitSemaphores(*renderFinishedSemaphore);
 
 		res = queue.presentKHR(presentInfo);
 
-		glfwPollEvents();
+		glfwMakeContextCurrent(secondWindow);
+
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		glfwSwapBuffers(secondWindow);
+
+		glfwMakeContextCurrent(nullptr);
 	}
 	device.waitIdle();
+
+	ImGui_ImplGlfw_Shutdown();
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui::DestroyContext(imguiContext);
 
 	glfwTerminate();
 	return 0;
