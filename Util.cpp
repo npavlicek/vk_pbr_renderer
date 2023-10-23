@@ -128,7 +128,7 @@ namespace util {
 		return vk::SurfaceFormatKHR{};
 	}
 
-	vk::raii::SwapchainKHR createSwapChain(
+	std::pair<vk::raii::SwapchainKHR, vk::SwapchainCreateInfoKHR> createSwapChain(
 			vk::raii::Device &device,
 			vk::raii::PhysicalDevice &physicalDevice,
 			vk::raii::SurfaceKHR &surface,
@@ -161,7 +161,7 @@ namespace util {
 
 		swapChainCreateInfo.setImageExtent(capabilities.currentExtent);
 
-		return {device, swapChainCreateInfo};
+		return std::pair{vk::raii::SwapchainKHR{device, swapChainCreateInfo}, swapChainCreateInfo};
 	}
 
 	vk::raii::CommandPool createCommandPool(
@@ -283,7 +283,20 @@ namespace util {
 		return res;
 	}
 
-	vk::raii::Pipeline createPipeline(
+	// TODO Complete vertex buffer creation
+//	vk::raii::Buffer createVertexBuffer(
+//			std::vector<Vertex> vertices,
+//			vk::MemoryRequirements memoryRequirements,
+//			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties
+//	) {
+//		vk::BufferCreateInfo bufferCreateInfo;
+//		bufferCreateInfo.setUsage(vk::BufferUsageFlagBits::eVertexBuffer);
+//		bufferCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+//		bufferCreateInfo.setSize(sizeof(vertices[0]) * vertices.size());
+//
+//	}
+
+	std::pair<vk::raii::Pipeline, vk::raii::PipelineCache> createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
@@ -316,7 +329,14 @@ namespace util {
 		pipelineDynamicStateCreateInfo.setDynamicStates(dynamicStates);
 
 		// Vertex Input
+		auto vertexAttributeDescription = Vertex::getAttributeDescription();
+		auto vertexBindingDescription = Vertex::getBindingDescription();
+
 		vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo;
+		pipelineVertexInputStateCreateInfo.setVertexAttributeDescriptionCount(vertexAttributeDescription.size());
+		pipelineVertexInputStateCreateInfo.setVertexAttributeDescriptions(vertexAttributeDescription);
+		pipelineVertexInputStateCreateInfo.setVertexBindingDescriptionCount(1);
+		pipelineVertexInputStateCreateInfo.setVertexBindingDescriptions(vertexBindingDescription);
 
 		// Input Assembly
 		vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo;
@@ -392,9 +412,14 @@ namespace util {
 		graphicsPipelineCreateInfo.setPMultisampleState(&pipelineMultisampleStateCreateInfo);
 		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
 		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
-		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
+		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);;
 
-		return {device, VK_NULL_HANDLE, graphicsPipelineCreateInfo};
+		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
+		vk::raii::PipelineCache pipelineCache{device, pipelineCacheCreateInfo};
+
+		vk::raii::Pipeline pipeline{device, pipelineCache, graphicsPipelineCreateInfo};
+
+		return {std::move(pipeline), std::move(pipelineCache)};
 	}
 
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
@@ -464,5 +489,20 @@ namespace util {
 		renderPassCreateInfo.setDependencyCount(1);
 
 		return {device, renderPassCreateInfo};
+	}
+
+	vk::raii::DescriptorPool createDescriptorPool(
+			vk::raii::Device &device,
+			int count
+	) {
+		vk::DescriptorPoolSize descriptorPoolSize;
+		descriptorPoolSize.setDescriptorCount(count);
+
+		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
+		descriptorPoolCreateInfo.setPoolSizeCount(1);
+		descriptorPoolCreateInfo.setPoolSizes(descriptorPoolSize);
+		descriptorPoolCreateInfo.setMaxSets(count);
+
+		return {device, descriptorPoolCreateInfo};
 	}
 } // pbr

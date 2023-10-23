@@ -10,6 +10,7 @@ find_package(glfw3 REQUIRED)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/imgui
         ${PROJECT_SOURCE_DIR}/imgui/backends
 )
@@ -20,7 +21,7 @@ file(GLOB proj_srcs
 )
 
 add_executable(vk_pbr_renderer ${proj_srcs}
-        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_opengl3.cpp"
+        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_vulkan.cpp"
         "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_glfw.cpp"
 )
 

@@ -1,12 +1,15 @@
 #ifndef VK_PBR_RENDERER_UTIL_H
 #define VK_PBR_RENDERER_UTIL_H
 
+#include <iostream>
+#include <fstream>
+#include <optional>
+
 #include <vulkan/vulkan_raii.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 #include <GLFW/glfw3.h>
 
-#include <iostream>
-#include <fstream>
+#include "Vertex.h"
 
 namespace util {
 	vk::raii::Instance createInstance(
@@ -32,7 +35,7 @@ namespace util {
 			vk::raii::PhysicalDevice &physicalDevice,
 			vk::raii::SurfaceKHR &surface
 	);
-	vk::raii::SwapchainKHR createSwapChain(
+	std::pair<vk::raii::SwapchainKHR, vk::SwapchainCreateInfoKHR> createSwapChain(
 			vk::raii::Device &device,
 			vk::raii::PhysicalDevice &physicalDevice,
 			vk::raii::SurfaceKHR &surface,
@@ -58,7 +61,7 @@ namespace util {
 			const char *vertexShaderPath,
 			const char *fragmentShaderPath
 	);
-	vk::raii::Pipeline createPipeline(
+	std::pair<vk::raii::Pipeline, vk::raii::PipelineCache> createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
@@ -74,6 +77,10 @@ namespace util {
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ImageView> &imageViews,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
+	);
+	vk::raii::DescriptorPool createDescriptorPool(
+			vk::raii::Device &device,
+			int count
 	);
 } // util
 

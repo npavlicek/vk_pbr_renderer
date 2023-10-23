@@ -1,10 +1,19 @@
-#include "Util.h"
-
+#include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
-#include <imgui.h>
-#include <imgui/backends/imgui_impl_opengl3.h>
-#include <imgui/backends/imgui_impl_glfw.h>
+#include "Vertex.h"
+#include "Util.h"
+#include "Frame.h"
+#include "VkErrorHandling.h"
+
+const int MAX_FRAMES_IN_FLIGHT = 2;
+int currentFrame = 0;
+
+const std::vector<Vertex> vertices{
+		{{-0.5f, -0.5},  {1.f, 0.f, 0.f}},
+		{{0.f,   0.5f},  {0.f, 1.f, 0.f}},
+		{{0.5f,  -0.5f}, {0.f, 0.f, 1.f}}
+};
 
 void keyCallback(
 		GLFWwindow *window,
@@ -19,96 +28,6 @@ void keyCallback(
 				GLFW_TRUE
 		);
 	}
-}
-
-void beginRenderPass(
-		vk::raii::CommandBuffer &commandBuffer,
-		vk::raii::Framebuffer &frameBuffer,
-		vk::raii::RenderPass &renderPass,
-		vk::Rect2D renderArea
-) {
-	vk::ClearValue clearValue{vk::ClearColorValue{.15f, 0.f, .25f, 1.f}};
-
-	vk::RenderPassBeginInfo renderPassBeginInfo;
-	renderPassBeginInfo.setClearValueCount(1);
-	renderPassBeginInfo.setClearValues(clearValue);
-	renderPassBeginInfo.setRenderPass(*renderPass);
-	renderPassBeginInfo.setFramebuffer(*frameBuffer);
-	renderPassBeginInfo.setRenderArea(renderArea);
-
-	commandBuffer.beginRenderPass(
-			renderPassBeginInfo,
-			vk::SubpassContents::eInline
-	);
-}
-
-void endRenderPass(vk::raii::CommandBuffer &commandBuffer) {
-	commandBuffer.endRenderPass();
-}
-
-void draw(
-		vk::raii::CommandBuffer &commandBuffer,
-		vk::raii::Pipeline &pipeline,
-		vk::Extent2D swapChainExtent
-) {
-	commandBuffer.bindPipeline(
-			vk::PipelineBindPoint::eGraphics,
-			*pipeline
-	);
-
-	vk::Viewport viewport{
-			0,
-			0,
-			static_cast<float>(swapChainExtent.width),
-			static_cast<float>(swapChainExtent.height),
-			0,
-			1
-	};
-	vk::Rect2D scissor{
-			{0, 0},
-			swapChainExtent
-	};
-	commandBuffer.setScissor(
-			0,
-			scissor
-	);
-	commandBuffer.setViewport(
-			0,
-			viewport
-	);
-	commandBuffer.draw(
-			3,
-			1,
-			0,
-			0
-	);
-}
-
-void writeCommandBuffer(
-		vk::raii::CommandBuffer &commandBuffer,
-		vk::raii::Pipeline &pipeline,
-		vk::raii::Framebuffer &frameBuffer,
-		vk::raii::RenderPass &renderPass,
-		vk::SurfaceCapabilitiesKHR surfaceCapabilities
-) {
-	vk::CommandBufferBeginInfo commandBufferBeginInfo;
-	commandBuffer.begin(commandBufferBeginInfo);
-	beginRenderPass(
-			commandBuffer,
-			frameBuffer,
-			renderPass,
-			{
-					{},
-					surfaceCapabilities.currentExtent
-			}
-	);
-	draw(
-			commandBuffer,
-			pipeline,
-			surfaceCapabilities.currentExtent
-	);
-	endRenderPass(commandBuffer);
-	commandBuffer.end();
 }
 
 int main() {
@@ -132,21 +51,8 @@ int main() {
 			nullptr
 	);
 
-	glfwDefaultWindowHints();
-	glfwWindowHint(
-			GLFW_CLIENT_API,
-			GLFW_OPENGL_API
-	);
-	GLFWwindow *secondWindow = glfwCreateWindow(
-			700,
-			700,
-			"Testing",
-			nullptr,
-			nullptr
-	);
-
-	if (!secondWindow) {
-		std::cerr << "Error opening second window!" << std::endl;
+	if (!window) {
+		std::cerr << "Could not open primary window!" << std::endl;
 		glfwTerminate();
 		return -1;
 	}
@@ -155,20 +61,6 @@ int main() {
 			window,
 			keyCallback
 	);
-	glfwSetKeyCallback(
-			secondWindow,
-			keyCallback
-	);
-
-
-	glfwMakeContextCurrent(secondWindow);
-	auto imguiContext = ImGui::CreateContext();
-	ImGui_ImplGlfw_InitForOpenGL(
-			secondWindow,
-			true
-	);
-	ImGui_ImplOpenGL3_Init();
-	glfwMakeContextCurrent(nullptr);
 
 	vk::raii::Context context;
 	auto instance = util::createInstance(
@@ -191,13 +83,20 @@ int main() {
 			surface
 	);
 	auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-	auto swapChain = util::createSwapChain(
+
+	vk::raii::SwapchainKHR swapChain{nullptr};
+	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
+	std::tie(
+			swapChain,
+			swapChainCreateInfo
+	) = util::createSwapChain(
 			device,
 			physicalDevice,
 			surface,
 			swapChainFormat,
 			surfaceCapabilities
 	);
+
 	auto images = swapChain.getImages();
 	auto imageViews = util::createImageViews(
 			device,
@@ -211,7 +110,7 @@ int main() {
 	auto commandBuffers = util::createCommandBuffers(
 			device,
 			commandPool,
-			1
+			MAX_FRAMES_IN_FLIGHT
 	);
 	auto shaderModules = util::createShaderModules(
 			device,
@@ -222,7 +121,12 @@ int main() {
 			device,
 			swapChainFormat
 	);
-	auto pipeline = util::createPipeline(
+	vk::raii::Pipeline pipeline{nullptr};
+	vk::raii::PipelineCache pipelineCache{nullptr};
+	std::tie(
+			pipeline,
+			pipelineCache
+	) = util::createPipeline(
 			device,
 			renderPass,
 			shaderModules,
@@ -241,52 +145,38 @@ int main() {
 			0
 	);
 
-	vk::SemaphoreCreateInfo semaphoreCreateInfo;
-	auto imageAvailableSemaphore = device.createSemaphore(semaphoreCreateInfo);
-	auto renderFinishedSemaphore = device.createSemaphore(semaphoreCreateInfo);
+	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
+	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
+	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
+	renderFinishedSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		imageAvailableSemaphores.push_back(device.createSemaphore({}));
+		renderFinishedSemaphores.push_back(device.createSemaphore({}));
+	}
 
-	vk::FenceCreateInfo fenceCreateInfo{
-			vk::FenceCreateFlagBits::eSignaled
+	std::vector<vk::raii::Fence> inFlightFences;
+	inFlightFences.reserve(MAX_FRAMES_IN_FLIGHT);
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		inFlightFences.push_back(device.createFence({vk::FenceCreateFlagBits::eSignaled}));
+	}
+
+	vk::ClearColorValue clearColorValue{0.f, 0.f, 0.f, 1.f};
+	vk::Rect2D renderArea{
+			{0, 0},
+			surfaceCapabilities.currentExtent
 	};
-	auto fence = device.createFence(fenceCreateInfo);
 
-	while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(secondWindow)) {
+	VkResCheck res;
+
+	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
-		glfwMakeContextCurrent(secondWindow);
-		ImGui_ImplGlfw_NewFrame();
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui::NewFrame();
-		bool window_active = false;
-		ImGui::Begin(
-				"Test Window",
-				&window_active,
-				ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize
-		);
-		if (ImGui::BeginMenuBar()) {
-			if (ImGui::BeginMenu("Testing")) {
-				ImGui::MenuItem("Test1");
-				ImGui::MenuItem("Test1");
-				ImGui::MenuItem("Test1");
-				ImGui::MenuItem("Test1");
-				ImGui::EndMenu();
-			}
-			if (ImGui::BeginMenu("Menu 2")) {
-				ImGui::MenuItem("What the fuck");
-				ImGui::MenuItem("fskjfjnsdkl");
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
-		}
-		ImGui::End();
-		glfwMakeContextCurrent(nullptr);
-
-		auto res = device.waitForFences(
-				*fence,
+		res = device.waitForFences(
+				*inFlightFences[currentFrame],
 				VK_TRUE,
 				UINT32_MAX
 		);
-		device.resetFences(*fence);
+		device.resetFences(*inFlightFences[currentFrame]);
 
 		uint32_t imageIndex;
 		std::tie(
@@ -294,33 +184,42 @@ int main() {
 				imageIndex
 		) = swapChain.acquireNextImage(
 				UINT64_MAX,
-				*imageAvailableSemaphore,
+				*imageAvailableSemaphores[currentFrame],
 				VK_NULL_HANDLE
 		);
 
-		commandBuffers[0].reset();
-		writeCommandBuffer(
-				commandBuffers[0],
-				pipeline,
-				frameBuffers[imageIndex],
-				renderPass,
-				surfaceCapabilities
+		pbr::Frame::begin(
+				commandBuffers[currentFrame],
+				pipeline
 		);
+		pbr::Frame::beginRenderPass(
+				commandBuffers[currentFrame],
+				renderPass,
+				frameBuffers[imageIndex],
+				clearColorValue,
+				renderArea
+		);
+		pbr::Frame::draw(
+				commandBuffers[currentFrame],
+				renderArea
+		);
+		pbr::Frame::endRenderPass(commandBuffers[currentFrame]);
+		pbr::Frame::end(commandBuffers[currentFrame]);
 
 		std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
 		vk::SubmitInfo submitInfo;
 		submitInfo.setWaitSemaphoreCount(1);
-		submitInfo.setWaitSemaphores(*imageAvailableSemaphore);
+		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
 		submitInfo.setWaitDstStageMask(pipelineStageFlags);
 		submitInfo.setCommandBufferCount(1);
-		submitInfo.setCommandBuffers(*commandBuffers[0]);
+		submitInfo.setCommandBuffers(*commandBuffers[currentFrame]);
 		submitInfo.setSignalSemaphoreCount(1);
-		submitInfo.setSignalSemaphores(*renderFinishedSemaphore);
+		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
 
 		queue.submit(
 				submitInfo,
-				*fence
+				*inFlightFences[currentFrame]
 		);
 
 		vk::PresentInfoKHR presentInfo;
@@ -328,26 +227,13 @@ int main() {
 		presentInfo.setSwapchains(*swapChain);
 		presentInfo.setImageIndices(imageIndex);
 		presentInfo.setWaitSemaphoreCount(1);
-		presentInfo.setWaitSemaphores(*renderFinishedSemaphore);
+		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
 
 		res = queue.presentKHR(presentInfo);
 
-		glfwMakeContextCurrent(secondWindow);
-
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		glfwSwapBuffers(secondWindow);
-
-		glfwMakeContextCurrent(nullptr);
+		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 	device.waitIdle();
-
-	ImGui_ImplGlfw_Shutdown();
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui::DestroyContext(imguiContext);
 
 	glfwTerminate();
 	return 0;
