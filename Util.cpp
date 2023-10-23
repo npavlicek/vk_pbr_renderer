@@ -283,19 +283,6 @@ namespace util {
 		return res;
 	}
 
-	// TODO Complete vertex buffer creation
-//	vk::raii::Buffer createVertexBuffer(
-//			std::vector<Vertex> vertices,
-//			vk::MemoryRequirements memoryRequirements,
-//			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties
-//	) {
-//		vk::BufferCreateInfo bufferCreateInfo;
-//		bufferCreateInfo.setUsage(vk::BufferUsageFlagBits::eVertexBuffer);
-//		bufferCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
-//		bufferCreateInfo.setSize(sizeof(vertices[0]) * vertices.size());
-//
-//	}
-
 	std::pair<vk::raii::Pipeline, vk::raii::PipelineCache> createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
@@ -504,5 +491,71 @@ namespace util {
 		descriptorPoolCreateInfo.setMaxSets(count);
 
 		return {device, descriptorPoolCreateInfo};
+	}
+
+	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
+			vk::raii::Device &device,
+			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
+			vk::Flags<vk::MemoryPropertyFlagBits> memoryProperties,
+			vk::DeviceSize bufferSize,
+			vk::Flags<vk::BufferUsageFlagBits> usage
+	) {
+		vk::BufferCreateInfo bufferCreateInfo;
+		bufferCreateInfo.setUsage(usage);
+		bufferCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+		bufferCreateInfo.setSize(bufferSize);
+
+		vk::DeviceBufferMemoryRequirements deviceBufferMemoryRequirements;
+		deviceBufferMemoryRequirements.pCreateInfo = &bufferCreateInfo;
+		auto memoryRequirements2 = device.getBufferMemoryRequirements(deviceBufferMemoryRequirements);
+		auto memoryRequirements = memoryRequirements2.memoryRequirements;
+
+		std::optional<int> memoryIndex;
+		for (uint32_t memoryTypeIndex = 0;
+		     memoryTypeIndex < physicalDeviceMemoryProperties.memoryTypeCount; memoryTypeIndex++) {
+			const int memoryTypeBits = (1 << memoryTypeIndex);
+			const bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
+			if (isRequiredMemoryType) {
+				if (physicalDeviceMemoryProperties.memoryTypes[memoryTypeIndex].propertyFlags &
+				    memoryProperties)
+					memoryIndex = memoryTypeIndex;
+			}
+		}
+
+		if (!memoryIndex.has_value()) {
+			std::cerr << "Could not find required memory type!" << std::endl;
+			throw std::runtime_error("Vertex buffer creation error");
+		}
+
+		vk::MemoryAllocateInfo memoryAllocateInfo;
+		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex.value());
+		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
+		vk::raii::DeviceMemory deviceMemory{device, memoryAllocateInfo};
+
+		vk::raii::Buffer buffer{device, bufferCreateInfo};
+		buffer.bindMemory(
+				*deviceMemory,
+				0
+		);
+
+		return {std::move(buffer), std::move(deviceMemory)};
+	}
+
+	void uploadVertexData(
+			vk::raii::Device &device,
+			vk::raii::DeviceMemory &stagingBufferMemory,
+			const std::vector<Vertex> &vertices
+	) {
+		const auto bufferSize = sizeof(vertices[0]) * vertices.size();
+		void *data = stagingBufferMemory.mapMemory(
+				0,
+				bufferSize
+		);
+		memcpy(
+				data,
+				vertices.data(),
+				bufferSize
+		);
+		stagingBufferMemory.unmapMemory();
 	}
 } // pbr

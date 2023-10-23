@@ -9,7 +9,8 @@ namespace pbr {
 	public:
 		static void begin(
 				vk::raii::CommandBuffer &commandBuffer,
-				vk::raii::Pipeline &pipeline
+				vk::raii::Pipeline &pipeline,
+				vk::raii::Buffer &vertexBuffer
 		);
 		static void end(vk::raii::CommandBuffer &commandBuffer);
 		static void beginRenderPass(
@@ -23,7 +24,8 @@ namespace pbr {
 		static void endRenderPass(vk::raii::CommandBuffer &commandBuffer);
 		static void draw(
 				vk::raii::CommandBuffer &commandBuffer,
-				vk::Rect2D renderArea
+				vk::Rect2D renderArea,
+				int vertexCount
 		);
 	};
 } // pbr

@@ -4,12 +4,14 @@
 #include <iostream>
 #include <fstream>
 #include <optional>
+#include <exception>
 
 #include <vulkan/vulkan_raii.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 #include <GLFW/glfw3.h>
 
 #include "Vertex.h"
+#include "VkErrorHandling.h"
 
 namespace util {
 	vk::raii::Instance createInstance(
@@ -81,6 +83,18 @@ namespace util {
 	vk::raii::DescriptorPool createDescriptorPool(
 			vk::raii::Device &device,
 			int count
+	);
+	void uploadVertexData(
+			vk::raii::Device &device,
+			vk::raii::DeviceMemory &stagingBufferMemory,
+			const std::vector<Vertex> &vertices
+	);
+	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
+			vk::raii::Device &device,
+			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
+			vk::Flags<vk::MemoryPropertyFlagBits> memoryProperties,
+			vk::DeviceSize bufferSize,
+			vk::Flags<vk::BufferUsageFlagBits> usage
 	);
 } // util
 

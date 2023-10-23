@@ -3,13 +3,21 @@
 namespace pbr {
 	void Frame::begin(
 			vk::raii::CommandBuffer &commandBuffer,
-			vk::raii::Pipeline &pipeline
+			vk::raii::Pipeline &pipeline,
+			vk::raii::Buffer &vertexBuffer
 	) {
 		commandBuffer.reset();
 		commandBuffer.begin({});
+
 		commandBuffer.bindPipeline(
 				vk::PipelineBindPoint::eGraphics,
 				*pipeline
+		);
+
+		commandBuffer.bindVertexBuffers(
+				0,
+				*vertexBuffer,
+				vk::DeviceSize{0}
 		);
 	}
 
@@ -47,7 +55,8 @@ namespace pbr {
 
 	void Frame::draw(
 			vk::raii::CommandBuffer &commandBuffer,
-			vk::Rect2D renderArea
+			vk::Rect2D renderArea,
+			int vertexCount
 	) {
 		vk::Viewport viewport{
 				static_cast<float>(renderArea.offset.x),
@@ -66,7 +75,7 @@ namespace pbr {
 				viewport
 		);
 		commandBuffer.draw(
-				3,
+				vertexCount,
 				1,
 				0,
 				0

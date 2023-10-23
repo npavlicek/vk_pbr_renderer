@@ -1,3 +1,4 @@
+// KEEP VULKAN INCLUDED AT THE TOP OR THINGS WILL BREAK
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
@@ -10,9 +11,9 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
 
 const std::vector<Vertex> vertices{
-		{{-0.5f, -0.5},  {1.f, 0.f, 0.f}},
-		{{0.f,   0.5f},  {0.f, 1.f, 0.f}},
-		{{0.5f,  -0.5f}, {0.f, 0.f, 1.f}}
+		{{-0.5f, 0.5f},  {0.f, 1.f, 1.f}},
+		{{0.f,   -0.5f}, {0.f, 1.f, 0.f}},
+		{{0.5f,  0.5f},  {0.f, 0.f, 1.f}}
 };
 
 void keyCallback(
@@ -61,6 +62,8 @@ int main() {
 			window,
 			keyCallback
 	);
+
+	VkResCheck res;
 
 	vk::raii::Context context;
 	auto instance = util::createInstance(
@@ -139,11 +142,79 @@ int main() {
 			imageViews,
 			surfaceCapabilities
 	);
-
 	auto queue = device.getQueue(
 			queueFamilyIndex,
 			0
 	);
+
+	// Create staging and vertex buffers and upload data
+	auto physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
+	const auto vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+
+	vk::raii::Buffer stagingBuffer{nullptr};
+	vk::raii::DeviceMemory stagingBufferMemory{nullptr};
+	std::tie(
+			stagingBuffer,
+			stagingBufferMemory
+	) = util::createBuffer(
+			device,
+			physicalDeviceMemoryProperties,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+			vertexBufferSize,
+			vk::BufferUsageFlagBits::eTransferSrc
+	);
+
+	vk::raii::Buffer vertexBuffer{nullptr};
+	vk::raii::DeviceMemory vertexBufferMemory{nullptr};
+	std::tie(
+			vertexBuffer,
+			vertexBufferMemory
+	) = util::createBuffer(
+			device,
+			physicalDeviceMemoryProperties,
+			vk::MemoryPropertyFlagBits::eDeviceLocal,
+			vertexBufferSize,
+			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer
+	);
+
+	util::uploadVertexData(
+			device,
+			stagingBufferMemory,
+			vertices
+	);
+	//
+
+	// Copy staging buffer data to vertex buffer
+	{
+		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
+		commandBufferAllocateInfo.setCommandBufferCount(1);
+		commandBufferAllocateInfo.setCommandPool(*commandPool);
+		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
+		auto commandBuffer = std::move(vk::raii::CommandBuffers{device, commandBufferAllocateInfo}[0]);
+
+		vk::CommandBufferBeginInfo commandBufferBeginInfo;
+		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		commandBuffer.begin(commandBufferBeginInfo);
+
+		vk::BufferCopy bufferCopy;
+		bufferCopy.setSize(vertexBufferSize);
+		commandBuffer.copyBuffer(
+				*stagingBuffer,
+				*vertexBuffer,
+				bufferCopy
+		);
+
+		commandBuffer.end();
+
+		vk::SubmitInfo submitInfo;
+		submitInfo.setCommandBufferCount(1);
+		submitInfo.setCommandBuffers(*commandBuffer);
+
+		queue.submit(submitInfo);
+
+		device.waitIdle();
+	}
+	//
 
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
@@ -165,8 +236,6 @@ int main() {
 			{0, 0},
 			surfaceCapabilities.currentExtent
 	};
-
-	VkResCheck res;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -190,7 +259,8 @@ int main() {
 
 		pbr::Frame::begin(
 				commandBuffers[currentFrame],
-				pipeline
+				pipeline,
+				vertexBuffer
 		);
 		pbr::Frame::beginRenderPass(
 				commandBuffers[currentFrame],
@@ -201,7 +271,8 @@ int main() {
 		);
 		pbr::Frame::draw(
 				commandBuffers[currentFrame],
-				renderArea
+				renderArea,
+				static_cast<int>(vertices.size())
 		);
 		pbr::Frame::endRenderPass(commandBuffers[currentFrame]);
 		pbr::Frame::end(commandBuffers[currentFrame]);

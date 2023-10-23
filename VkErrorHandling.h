@@ -10,8 +10,13 @@ public:
 	VkResCheck() {};
 
 	VkResCheck(const vk::Result &rhs) { // NOLINT
-		checkResult(rhs);
 		lastResult = rhs;
+		checkResult(rhs);
+	}
+
+	VkResCheck(const VkResult &rhs) {
+		lastResult = vk::Result(rhs);
+		checkResult(lastResult);
 	}
 
 	static void checkResult(

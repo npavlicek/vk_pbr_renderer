@@ -30,7 +30,7 @@ struct Vertex {
 		vertexAttributeDescriptions.emplace_back(
 				1,
 				0,
-				vk::Format::eR32G32Sfloat,
+				vk::Format::eR32G32B32Sfloat,
 				offsetof(Vertex, color)
 		);
 
