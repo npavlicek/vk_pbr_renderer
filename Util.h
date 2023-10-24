@@ -81,10 +81,7 @@ namespace util {
 			std::vector<vk::raii::ImageView> &imageViews,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	);
-	vk::raii::DescriptorPool createDescriptorPool(
-			vk::raii::Device &device,
-			int count
-	);
+	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device);
 	void uploadVertexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,

@@ -4,6 +4,8 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include <imgui/backends/imgui_impl_vulkan.h>
+
 namespace pbr {
 	class Frame {
 	public:

@@ -32,7 +32,12 @@ const std::vector<Vertex> vertices{
 };
 
 const std::vector<uint16_t> indices{
-		0, 1, 2, 2, 3, 0
+		0,
+		1,
+		2,
+		2,
+		3,
+		0
 };
 
 void keyCallback(
@@ -249,7 +254,12 @@ int main() {
 		commandBufferAllocateInfo.setCommandBufferCount(1);
 		commandBufferAllocateInfo.setCommandPool(*commandPool);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
-		auto commandBuffer = std::move(vk::raii::CommandBuffers{device, commandBufferAllocateInfo}[0]);
+		auto commandBuffer = std::move(
+				vk::raii::CommandBuffers{
+						device,
+						commandBufferAllocateInfo
+				}[0]
+		);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -281,7 +291,12 @@ int main() {
 		commandBufferAllocateInfo.setCommandBufferCount(1);
 		commandBufferAllocateInfo.setCommandPool(*commandPool);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
-		auto commandBuffer = std::move(vk::raii::CommandBuffers{device, commandBufferAllocateInfo}[0]);
+		auto commandBuffer = std::move(
+				vk::raii::CommandBuffers{
+						device,
+						commandBufferAllocateInfo
+				}[0]
+		);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -342,9 +357,21 @@ int main() {
 	);
 	ubo.projection[1][1] *= -1;
 	ubo.view = glm::lookAt(
-			glm::vec3{2.f, 2.f, 2.f},
-			glm::vec3{0.f, 0.f, 0.f},
-			glm::vec3{0.f, 0.f, 1.f}
+			glm::vec3{
+					2.f,
+					2.f,
+					2.f
+			},
+			glm::vec3{
+					0.f,
+					0.f,
+					0.f
+			},
+			glm::vec3{
+					0.f,
+					0.f,
+					1.f
+			}
 	);
 	ubo.model = glm::identity<glm::mat4>();
 
@@ -360,8 +387,7 @@ int main() {
 	// DESCRIPTOR SETS
 
 	auto descriptorPool = util::createDescriptorPool(
-			device,
-			MAX_FRAMES_IN_FLIGHT
+			device
 	);
 
 	auto descriptorSet = util::createDescriptorSet(
@@ -393,6 +419,66 @@ int main() {
 	// END DESCRIPTOR SETS
 
 
+	// BEGIN IMGUI
+
+	auto imguiContext = ImGui::CreateContext();
+	ImGui_ImplGlfw_InitForVulkan(
+			window,
+			true
+	);
+
+	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{
+			*instance,
+			*physicalDevice,
+			*device,
+			static_cast<uint32_t>(queueFamilyIndex),
+			*queue,
+			*pipelineCache,
+			*descriptorPool,
+			0,
+			surfaceCapabilities.minImageCount,
+			surfaceCapabilities.minImageCount,
+			static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
+			false,
+			static_cast<VkFormat>(swapChainFormat.format),
+			nullptr,
+			nullptr
+	};
+
+	ImGui_ImplVulkan_Init(
+			&imGuiImplVulkanInitInfo,
+			*renderPass
+	);
+
+	// UPLOAD IMGUI FONTS
+	{
+		vk::raii::CommandBuffer commandBuffer = std::move(
+				util::createCommandBuffers(
+						device,
+						commandPool,
+						1
+				)[0]
+		);
+
+		vk::CommandBufferBeginInfo commandBufferBeginInfo;
+		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		commandBuffer.begin(commandBufferBeginInfo);
+
+		ImGui_ImplVulkan_CreateFontsTexture(*commandBuffer);
+
+		commandBuffer.end();
+		vk::SubmitInfo submitInfo;
+		submitInfo.setCommandBufferCount(1);
+		submitInfo.setCommandBuffers(*commandBuffer);
+		queue.submit(submitInfo);
+
+		device.waitIdle();
+	}
+
+	ImGui_ImplVulkan_DestroyFontUploadObjects();
+
+	// END IMGUI
+
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
@@ -408,13 +494,24 @@ int main() {
 		inFlightFences.push_back(device.createFence({vk::FenceCreateFlagBits::eSignaled}));
 	}
 
-	vk::ClearColorValue clearColorValue{0.f, 0.f, 0.f, 1.f};
+	vk::ClearColorValue clearColorValue{
+			0.f,
+			0.f,
+			0.f,
+			1.f
+	};
 	vk::Rect2D renderArea{
-			{0, 0},
+			{
+					0,
+					0
+			},
 			surfaceCapabilities.currentExtent
 	};
 
 	auto startTime = std::chrono::high_resolution_clock::now();
+
+	float input = 0.f;
+	bool x = false, y = false, z = true;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -426,19 +523,46 @@ int main() {
 		);
 		device.resetFences(*inFlightFences[currentFrame]);
 
+		// IMGUI NEW FRAME
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::Begin("Settings");
+		std::cout << input << std::endl;
+		ImGui::SliderFloat(
+				"Degrees/S",
+				&input,
+				-180.f,
+				180.f
+		);
+		ImGui::Checkbox(
+				"X",
+				&x
+		);
+		ImGui::Checkbox(
+				"Y",
+				&y
+		);
+		ImGui::Checkbox(
+				"Z",
+				&z
+		);
+		ImGui::End();
+
+		// IMGUI END NEW FRAME
+
 		// Update model matrix
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-		//std::cout << "Time: " << time << "\n";
-		std::cout << "Angle: " << time * glm::radians(180.f) << "\n";
 		ubo.model = glm::rotate(
 				glm::mat4(1.f),
-				time * glm::radians(90.f),
+				time * glm::radians(input),
 				glm::vec3(
-						0.f,
-						0.f,
-						1.f
+						x,
+						y,
+						z
 				));
 
 		memcpy(
@@ -447,7 +571,8 @@ int main() {
 				sizeof(ubo)
 		);
 
-		//
+		// end update model matrix
+
 
 		uint32_t imageIndex;
 		std::tie(
@@ -510,6 +635,10 @@ int main() {
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 	device.waitIdle();
+
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext(imguiContext);
 
 	glfwTerminate();
 	return 0;

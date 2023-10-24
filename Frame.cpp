@@ -98,5 +98,10 @@ namespace pbr {
 				0,
 				0
 		);
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(
+				ImGui::GetDrawData(),
+				*commandBuffer
+		);
 	}
 } // pbr

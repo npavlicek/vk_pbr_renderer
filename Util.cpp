@@ -34,7 +34,10 @@ namespace util {
 		instanceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
 		instanceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
-		return {context, instanceCreateInfo};
+		return {
+				context,
+				instanceCreateInfo
+		};
 	}
 
 	vk::raii::PhysicalDevice selectPhysicalDevice(
@@ -93,7 +96,10 @@ namespace util {
 		deviceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
 		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
-		return {physicalDevice, deviceCreateInfo};
+		return {
+				physicalDevice,
+				deviceCreateInfo
+		};
 	}
 
 	vk::raii::SurfaceKHR createSurface(
@@ -109,7 +115,10 @@ namespace util {
 				&surface
 		);
 
-		return {instance, surface};
+		return {
+				instance,
+				surface
+		};
 	}
 
 	// TODO: change the return type to an optional or throw an exception, other functions should as well
@@ -161,7 +170,13 @@ namespace util {
 
 		swapChainCreateInfo.setImageExtent(capabilities.currentExtent);
 
-		return std::pair{vk::raii::SwapchainKHR{device, swapChainCreateInfo}, swapChainCreateInfo};
+		return std::pair{
+				vk::raii::SwapchainKHR{
+						device,
+						swapChainCreateInfo
+				},
+				swapChainCreateInfo
+		};
 	}
 
 	vk::raii::CommandPool createCommandPool(
@@ -172,7 +187,10 @@ namespace util {
 		commandPoolCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
 		commandPoolCreateInfo.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
-		return {device, commandPoolCreateInfo};
+		return {
+				device,
+				commandPoolCreateInfo
+		};
 	}
 
 	vk::raii::CommandBuffers createCommandBuffers(
@@ -185,7 +203,10 @@ namespace util {
 		commandBufferAllocateInfo.setCommandBufferCount(count);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 
-		return {device, commandBufferAllocateInfo};
+		return {
+				device,
+				commandBufferAllocateInfo
+		};
 	}
 
 	std::vector<vk::raii::ImageView> createImageViews(
@@ -200,7 +221,15 @@ namespace util {
 		imageViewCreateInfo.setComponents({});
 		imageViewCreateInfo.setFormat(swapChainFormat.format);
 		imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
-		imageViewCreateInfo.setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+		imageViewCreateInfo.setSubresourceRange(
+				{
+						vk::ImageAspectFlagBits::eColor,
+						0,
+						1,
+						0,
+						1
+				}
+		);
 
 		for (auto image: images) {
 			imageViewCreateInfo.setImage(image);
@@ -310,7 +339,10 @@ namespace util {
 		// Fixed Functions
 
 		// Dynamic State
-		std::vector<vk::DynamicState> dynamicStates{vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+		std::vector<vk::DynamicState> dynamicStates{
+				vk::DynamicState::eViewport,
+				vk::DynamicState::eScissor
+		};
 
 		vk::PipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
 		pipelineDynamicStateCreateInfo.setDynamicStateCount(dynamicStates.size());
@@ -341,7 +373,12 @@ namespace util {
 		viewport.setHeight(static_cast<float>(surfaceCapabilities.currentExtent.height));
 
 		vk::Rect2D scissor;
-		scissor.setOffset({0, 0});
+		scissor.setOffset(
+				{
+						0,
+						0
+				}
+		);
 		scissor.setExtent(surfaceCapabilities.currentExtent);
 
 		vk::PipelineViewportStateCreateInfo pipelineViewportStateCreateInfo;
@@ -393,7 +430,10 @@ namespace util {
 		descriptorSetLayoutCreateInfo.setBindingCount(1);
 		descriptorSetLayoutCreateInfo.setBindings(descriptorSetLayoutBinding);
 
-		vk::raii::DescriptorSetLayout descriptorSetLayout{device, descriptorSetLayoutCreateInfo};
+		vk::raii::DescriptorSetLayout descriptorSetLayout{
+				device,
+				descriptorSetLayoutCreateInfo
+		};
 
 		// Pipeline Layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
@@ -419,12 +459,23 @@ namespace util {
 		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
 
 		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
-		vk::raii::PipelineCache pipelineCache{device, pipelineCacheCreateInfo};
+		vk::raii::PipelineCache pipelineCache{
+				device,
+				pipelineCacheCreateInfo
+		};
 
-		vk::raii::Pipeline pipeline{device, pipelineCache, graphicsPipelineCreateInfo};
+		vk::raii::Pipeline pipeline{
+				device,
+				pipelineCache,
+				graphicsPipelineCreateInfo
+		};
 
-		return {std::move(pipeline), std::move(pipelineLayout), std::move(pipelineCache),
-		        std::move(descriptorSetLayout)};
+		return {
+				std::move(pipeline),
+				std::move(pipelineLayout),
+				std::move(pipelineCache),
+				std::move(descriptorSetLayout)
+		};
 	}
 
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
@@ -493,22 +544,70 @@ namespace util {
 		renderPassCreateInfo.setDependencies(subpassDependency);
 		renderPassCreateInfo.setDependencyCount(1);
 
-		return {device, renderPassCreateInfo};
+		return {
+				device,
+				renderPassCreateInfo
+		};
 	}
 
-	vk::raii::DescriptorPool createDescriptorPool(
-			vk::raii::Device &device,
-			int count
-	) {
-		vk::DescriptorPoolSize descriptorPoolSize{};
-		descriptorPoolSize.setDescriptorCount(count);
+	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device) {
+		// TODO fix the sizes for these descriptor pools
+		std::vector<vk::DescriptorPoolSize> descriptorPoolSizes{
+				{
+						vk::DescriptorType::eSampler,
+						1000
+				},
+				{
+						vk::DescriptorType::eCombinedImageSampler,
+						1000
+				},
+				{
+						vk::DescriptorType::eSampledImage,
+						1000
+				},
+				{
+						vk::DescriptorType::eStorageImage,
+						1000
+				},
+				{
+						vk::DescriptorType::eUniformTexelBuffer,
+						1000
+				},
+				{
+						vk::DescriptorType::eStorageTexelBuffer,
+						1000
+				},
+				{
+						vk::DescriptorType::eUniformBuffer,
+						1000
+				},
+				{
+						vk::DescriptorType::eStorageBuffer,
+						1000
+				},
+				{
+						vk::DescriptorType::eUniformBufferDynamic,
+						1000
+				},
+				{
+						vk::DescriptorType::eStorageBufferDynamic,
+						1000
+				},
+				{
+						vk::DescriptorType::eInputAttachment,
+						1000
+				}
+		};
 
 		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
-		descriptorPoolCreateInfo.setPoolSizeCount(1);
-		descriptorPoolCreateInfo.setPoolSizes(descriptorPoolSize);
-		descriptorPoolCreateInfo.setMaxSets(count);
+		descriptorPoolCreateInfo.setPoolSizeCount(descriptorPoolSizes.size());
+		descriptorPoolCreateInfo.setPoolSizes(*descriptorPoolSizes.data());
+		descriptorPoolCreateInfo.setMaxSets(1000);
 
-		return {device, descriptorPoolCreateInfo};
+		return {
+				device,
+				descriptorPoolCreateInfo
+		};
 	}
 
 	vk::raii::DescriptorSet createDescriptorSet(
@@ -563,15 +662,24 @@ namespace util {
 		vk::MemoryAllocateInfo memoryAllocateInfo;
 		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex.value());
 		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
-		vk::raii::DeviceMemory deviceMemory{device, memoryAllocateInfo};
+		vk::raii::DeviceMemory deviceMemory{
+				device,
+				memoryAllocateInfo
+		};
 
-		vk::raii::Buffer buffer{device, bufferCreateInfo};
+		vk::raii::Buffer buffer{
+				device,
+				bufferCreateInfo
+		};
 		buffer.bindMemory(
 				*deviceMemory,
 				0
 		);
 
-		return {std::move(buffer), std::move(deviceMemory)};
+		return {
+				std::move(buffer),
+				std::move(deviceMemory)
+		};
 	}
 
 	void uploadVertexData(
