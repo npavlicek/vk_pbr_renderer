@@ -2,6 +2,14 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_vulkan.h>
+
+#include <glm/ext.hpp>
+
+#include <chrono>
+
 #include "Vertex.h"
 #include "Util.h"
 #include "Frame.h"
@@ -9,6 +17,12 @@
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
+
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
+};
 
 const std::vector<Vertex> vertices{
 		{{-0.5f, -0.5f}, {0.f, 1.f, 1.f}},
@@ -130,10 +144,14 @@ int main() {
 			swapChainFormat
 	);
 	vk::raii::Pipeline pipeline{nullptr};
+	vk::raii::PipelineLayout pipelineLayout{nullptr};
 	vk::raii::PipelineCache pipelineCache{nullptr};
+	vk::raii::DescriptorSetLayout descriptorSetLayout{nullptr};
 	std::tie(
 			pipeline,
-			pipelineCache
+			pipelineLayout,
+			pipelineCache,
+			descriptorSetLayout
 	) = util::createPipeline(
 			device,
 			renderPass,
@@ -289,6 +307,92 @@ int main() {
 	}
 	//
 
+	// UNIFORM BUFFERS
+
+	void *uniformBufferMemPtrs[MAX_FRAMES_IN_FLIGHT];
+	std::vector<vk::raii::Buffer> uniformBuffers;
+	std::vector<vk::raii::DeviceMemory> uniformBufferMemory;
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		auto uniformBuffer = util::createBuffer(
+				device,
+				physicalDeviceMemoryProperties,
+				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+				sizeof(UniformBufferObject),
+				vk::BufferUsageFlagBits::eUniformBuffer
+		);
+		uniformBuffers.push_back(std::move(std::get<vk::raii::Buffer>(uniformBuffer)));
+		uniformBufferMemory.push_back(std::move(std::get<vk::raii::DeviceMemory>(uniformBuffer)));
+
+		vkMapMemory(
+				*device,
+				*uniformBufferMemory[i],
+				0,
+				sizeof(UniformBufferObject),
+				0,
+				&uniformBufferMemPtrs[i]
+		);
+	}
+
+	UniformBufferObject ubo{};
+	ubo.projection = glm::perspective(
+			glm::radians(45.f),
+			1280.f / 720.f,
+			0.1f,
+			10.f
+	);
+	ubo.projection[1][1] *= -1;
+	ubo.view = glm::lookAt(
+			glm::vec3{2.f, 2.f, 2.f},
+			glm::vec3{0.f, 0.f, 0.f},
+			glm::vec3{0.f, 0.f, 1.f}
+	);
+	ubo.model = glm::identity<glm::mat4>();
+
+	for (const auto &uniformBufferMemPtr: uniformBufferMemPtrs) {
+		memcpy(
+				uniformBufferMemPtr,
+				&ubo,
+				sizeof(ubo));
+	}
+
+	// END UNIFORM BUFFERS
+
+	// DESCRIPTOR SETS
+
+	auto descriptorPool = util::createDescriptorPool(
+			device,
+			MAX_FRAMES_IN_FLIGHT
+	);
+
+	auto descriptorSet = util::createDescriptorSet(
+			device,
+			descriptorPool,
+			descriptorSetLayout
+	);
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		vk::DescriptorBufferInfo descriptorBufferInfo{};
+		descriptorBufferInfo.setOffset(0);
+		descriptorBufferInfo.setBuffer(*uniformBuffers[i]);
+		descriptorBufferInfo.setRange(sizeof(UniformBufferObject));
+
+		vk::WriteDescriptorSet writeDescriptorSet{};
+		writeDescriptorSet.setDstSet(*descriptorSet);
+		writeDescriptorSet.setDstBinding(0);
+		writeDescriptorSet.setDstArrayElement(0);
+		writeDescriptorSet.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+		writeDescriptorSet.setDescriptorCount(1);
+		writeDescriptorSet.setBufferInfo(descriptorBufferInfo);
+
+		device.updateDescriptorSets(
+				writeDescriptorSet,
+				nullptr
+		);
+	}
+
+	// END DESCRIPTOR SETS
+
+
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
@@ -310,6 +414,8 @@ int main() {
 			surfaceCapabilities.currentExtent
 	};
 
+	auto startTime = std::chrono::high_resolution_clock::now();
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
@@ -319,6 +425,29 @@ int main() {
 				UINT32_MAX
 		);
 		device.resetFences(*inFlightFences[currentFrame]);
+
+		// Update model matrix
+
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		//std::cout << "Time: " << time << "\n";
+		std::cout << "Angle: " << time * glm::radians(180.f) << "\n";
+		ubo.model = glm::rotate(
+				glm::mat4(1.f),
+				time * glm::radians(90.f),
+				glm::vec3(
+						0.f,
+						0.f,
+						1.f
+				));
+
+		memcpy(
+				uniformBufferMemPtrs[currentFrame],
+				&ubo,
+				sizeof(ubo)
+		);
+
+		//
 
 		uint32_t imageIndex;
 		std::tie(
@@ -333,8 +462,10 @@ int main() {
 		pbr::Frame::begin(
 				commandBuffers[currentFrame],
 				pipeline,
+				pipelineLayout,
 				vertexBuffer,
-				indexBuffer
+				indexBuffer,
+				descriptorSet
 		);
 		pbr::Frame::beginRenderPass(
 				commandBuffers[currentFrame],

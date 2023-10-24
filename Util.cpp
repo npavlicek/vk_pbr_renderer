@@ -283,7 +283,8 @@ namespace util {
 		return res;
 	}
 
-	std::pair<vk::raii::Pipeline, vk::raii::PipelineCache> createPipeline(
+	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
+	createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
@@ -354,7 +355,7 @@ namespace util {
 		pipelineRasterizationStateCreateInfo.setRasterizerDiscardEnable(vk::False);
 		pipelineRasterizationStateCreateInfo.setPolygonMode(vk::PolygonMode::eFill);
 		pipelineRasterizationStateCreateInfo.setLineWidth(1.f);
-		pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlags{vk::CullModeFlagBits::eBack});
+		pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlags{vk::CullModeFlagBits::eNone});
 		pipelineRasterizationStateCreateInfo.setFrontFace(vk::FrontFace::eClockwise);
 		pipelineRasterizationStateCreateInfo.setDepthBiasEnable(vk::False);
 
@@ -381,8 +382,24 @@ namespace util {
 		pipelineColorBlendStateCreateInfo.setAttachments(colorBlendAttachmentState);
 		pipelineColorBlendStateCreateInfo.setLogicOpEnable(vk::False);
 
+		// Descriptor Sets Layout
+		vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding;
+		descriptorSetLayoutBinding.setBinding(0);
+		descriptorSetLayoutBinding.setDescriptorCount(1);
+		descriptorSetLayoutBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+		descriptorSetLayoutBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
+		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
+		descriptorSetLayoutCreateInfo.setBindingCount(1);
+		descriptorSetLayoutCreateInfo.setBindings(descriptorSetLayoutBinding);
+
+		vk::raii::DescriptorSetLayout descriptorSetLayout{device, descriptorSetLayoutCreateInfo};
+
 		// Pipeline Layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
+		pipelineLayoutCreateInfo.setSetLayoutCount(1);
+		pipelineLayoutCreateInfo.setSetLayouts(*descriptorSetLayout);
+
 		vk::raii::PipelineLayout pipelineLayout(
 				device,
 				pipelineLayoutCreateInfo
@@ -399,14 +416,15 @@ namespace util {
 		graphicsPipelineCreateInfo.setPMultisampleState(&pipelineMultisampleStateCreateInfo);
 		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
 		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
-		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);;
+		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
 
 		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
 		vk::raii::PipelineCache pipelineCache{device, pipelineCacheCreateInfo};
 
 		vk::raii::Pipeline pipeline{device, pipelineCache, graphicsPipelineCreateInfo};
 
-		return {std::move(pipeline), std::move(pipelineCache)};
+		return {std::move(pipeline), std::move(pipelineLayout), std::move(pipelineCache),
+		        std::move(descriptorSetLayout)};
 	}
 
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
@@ -482,15 +500,30 @@ namespace util {
 			vk::raii::Device &device,
 			int count
 	) {
-		vk::DescriptorPoolSize descriptorPoolSize;
+		vk::DescriptorPoolSize descriptorPoolSize{};
 		descriptorPoolSize.setDescriptorCount(count);
 
-		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
+		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
 		descriptorPoolCreateInfo.setPoolSizeCount(1);
 		descriptorPoolCreateInfo.setPoolSizes(descriptorPoolSize);
 		descriptorPoolCreateInfo.setMaxSets(count);
 
 		return {device, descriptorPoolCreateInfo};
+	}
+
+	vk::raii::DescriptorSet createDescriptorSet(
+			vk::raii::Device &device,
+			vk::raii::DescriptorPool &descriptorPool,
+			vk::raii::DescriptorSetLayout &descriptorSetLayout
+	) {
+		vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+		descriptorSetAllocateInfo.setDescriptorPool(*descriptorPool);
+		descriptorSetAllocateInfo.setSetLayouts(*descriptorSetLayout);
+		descriptorSetAllocateInfo.setDescriptorSetCount(1);
+
+		auto descriptorSet = device.allocateDescriptorSets(descriptorSetAllocateInfo);
+
+		return std::move(descriptorSet[0]);
 	}
 
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(

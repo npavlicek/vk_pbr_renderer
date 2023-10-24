@@ -4,8 +4,10 @@ namespace pbr {
 	void Frame::begin(
 			vk::raii::CommandBuffer &commandBuffer,
 			vk::raii::Pipeline &pipeline,
+			vk::raii::PipelineLayout &pipelineLayout,
 			vk::raii::Buffer &vertexBuffer,
-			vk::raii::Buffer &indexBuffer
+			vk::raii::Buffer &indexBuffer,
+			vk::raii::DescriptorSet &descriptorSet
 	) {
 		commandBuffer.reset();
 		commandBuffer.begin({});
@@ -25,6 +27,14 @@ namespace pbr {
 				*indexBuffer,
 				0,
 				vk::IndexType::eUint16
+		);
+
+		commandBuffer.bindDescriptorSets(
+				vk::PipelineBindPoint::eGraphics,
+				*pipelineLayout,
+				0,
+				*descriptorSet,
+				nullptr
 		);
 	}
 

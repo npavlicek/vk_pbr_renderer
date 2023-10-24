@@ -63,7 +63,8 @@ namespace util {
 			const char *vertexShaderPath,
 			const char *fragmentShaderPath
 	);
-	std::pair<vk::raii::Pipeline, vk::raii::PipelineCache> createPipeline(
+	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
+	createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ShaderModule> &shaderModules,
@@ -101,6 +102,11 @@ namespace util {
 			vk::Flags<vk::MemoryPropertyFlagBits> memoryProperties,
 			vk::DeviceSize bufferSize,
 			vk::Flags<vk::BufferUsageFlagBits> usage
+	);
+	vk::raii::DescriptorSet createDescriptorSet(
+			vk::raii::Device &device,
+			vk::raii::DescriptorPool &descriptorPool,
+			vk::raii::DescriptorSetLayout &descriptorSetLayout
 	);
 } // util
 
