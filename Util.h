@@ -89,6 +89,12 @@ namespace util {
 			vk::raii::DeviceMemory &stagingBufferMemory,
 			const std::vector<Vertex> &vertices
 	);
+
+	void uploadIndexData(
+			vk::raii::Device &device,
+			vk::raii::DeviceMemory &stagingBufferMemory,
+			const std::vector<uint16_t> &indices
+	);
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
 			vk::raii::Device &device,
 			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,

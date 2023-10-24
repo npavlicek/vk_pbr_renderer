@@ -558,4 +558,22 @@ namespace util {
 		);
 		stagingBufferMemory.unmapMemory();
 	}
+
+	void uploadIndexData(
+			vk::raii::Device &device,
+			vk::raii::DeviceMemory &stagingBufferMemory,
+			const std::vector<uint16_t> &indices
+	) {
+		const auto bufferSize = sizeof(indices[0]) * indices.size();
+		void *data = stagingBufferMemory.mapMemory(
+				0,
+				bufferSize
+		);
+		memcpy(
+				data,
+				indices.data(),
+				bufferSize
+		);
+		stagingBufferMemory.unmapMemory();
+	}
 } // pbr

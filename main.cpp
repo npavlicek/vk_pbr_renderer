@@ -11,9 +11,14 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
 
 const std::vector<Vertex> vertices{
-		{{-0.5f, 0.5f},  {0.f, 1.f, 1.f}},
-		{{0.f,   -0.5f}, {0.f, 1.f, 0.f}},
-		{{0.5f,  0.5f},  {0.f, 0.f, 1.f}}
+		{{-0.5f, -0.5f}, {0.f, 1.f, 1.f}},
+		{{0.5f,  -0.5f}, {0.f, 1.f, 0.f}},
+		{{0.5f,  0.5f},  {0.f, 1.f, 0.f}},
+		{{-0.5f, 0.5f},  {0.f, 0.f, 1.f}}
+};
+
+const std::vector<uint16_t> indices{
+		0, 1, 2, 2, 3, 0
 };
 
 void keyCallback(
@@ -184,6 +189,42 @@ int main() {
 	);
 	//
 
+	// Create index buffers and staging buffers and upload index data
+	const auto indexBufferSize = sizeof(indices[0]) * indices.size();
+
+	vk::raii::Buffer indexBufferStaging{nullptr};
+	vk::raii::DeviceMemory indexBufferStagingMemory{nullptr};
+	std::tie(
+			indexBufferStaging,
+			indexBufferStagingMemory
+	) = util::createBuffer(
+			device,
+			physicalDeviceMemoryProperties,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+			indexBufferSize,
+			vk::BufferUsageFlagBits::eTransferSrc
+	);
+
+	vk::raii::Buffer indexBuffer{nullptr};
+	vk::raii::DeviceMemory indexBufferMemory{nullptr};
+	std::tie(
+			indexBuffer,
+			indexBufferMemory
+	) = util::createBuffer(
+			device,
+			physicalDeviceMemoryProperties,
+			vk::MemoryPropertyFlagBits::eDeviceLocal,
+			indexBufferSize,
+			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer
+	);
+
+	util::uploadIndexData(
+			device,
+			indexBufferStagingMemory,
+			indices
+	);
+	//
+
 	// Copy staging buffer data to vertex buffer
 	{
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
@@ -201,6 +242,38 @@ int main() {
 		commandBuffer.copyBuffer(
 				*stagingBuffer,
 				*vertexBuffer,
+				bufferCopy
+		);
+
+		commandBuffer.end();
+
+		vk::SubmitInfo submitInfo;
+		submitInfo.setCommandBufferCount(1);
+		submitInfo.setCommandBuffers(*commandBuffer);
+
+		queue.submit(submitInfo);
+
+		device.waitIdle();
+	}
+	//
+
+	// Copy staging buffer data to index buffer
+	{
+		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
+		commandBufferAllocateInfo.setCommandBufferCount(1);
+		commandBufferAllocateInfo.setCommandPool(*commandPool);
+		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
+		auto commandBuffer = std::move(vk::raii::CommandBuffers{device, commandBufferAllocateInfo}[0]);
+
+		vk::CommandBufferBeginInfo commandBufferBeginInfo;
+		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		commandBuffer.begin(commandBufferBeginInfo);
+
+		vk::BufferCopy bufferCopy;
+		bufferCopy.setSize(indexBufferSize);
+		commandBuffer.copyBuffer(
+				*indexBufferStaging,
+				*indexBuffer,
 				bufferCopy
 		);
 
@@ -260,7 +333,8 @@ int main() {
 		pbr::Frame::begin(
 				commandBuffers[currentFrame],
 				pipeline,
-				vertexBuffer
+				vertexBuffer,
+				indexBuffer
 		);
 		pbr::Frame::beginRenderPass(
 				commandBuffers[currentFrame],
@@ -272,7 +346,7 @@ int main() {
 		pbr::Frame::draw(
 				commandBuffers[currentFrame],
 				renderArea,
-				static_cast<int>(vertices.size())
+				static_cast<int>(indices.size())
 		);
 		pbr::Frame::endRenderPass(commandBuffers[currentFrame]);
 		pbr::Frame::end(commandBuffers[currentFrame]);

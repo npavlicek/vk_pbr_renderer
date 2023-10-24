@@ -4,7 +4,8 @@ namespace pbr {
 	void Frame::begin(
 			vk::raii::CommandBuffer &commandBuffer,
 			vk::raii::Pipeline &pipeline,
-			vk::raii::Buffer &vertexBuffer
+			vk::raii::Buffer &vertexBuffer,
+			vk::raii::Buffer &indexBuffer
 	) {
 		commandBuffer.reset();
 		commandBuffer.begin({});
@@ -18,6 +19,12 @@ namespace pbr {
 				0,
 				*vertexBuffer,
 				vk::DeviceSize{0}
+		);
+
+		commandBuffer.bindIndexBuffer(
+				*indexBuffer,
+				0,
+				vk::IndexType::eUint16
 		);
 	}
 
@@ -74,9 +81,10 @@ namespace pbr {
 				0,
 				viewport
 		);
-		commandBuffer.draw(
+		commandBuffer.drawIndexed(
 				vertexCount,
 				1,
+				0,
 				0,
 				0
 		);

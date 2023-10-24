@@ -10,7 +10,8 @@ namespace pbr {
 		static void begin(
 				vk::raii::CommandBuffer &commandBuffer,
 				vk::raii::Pipeline &pipeline,
-				vk::raii::Buffer &vertexBuffer
+				vk::raii::Buffer &vertexBuffer,
+				vk::raii::Buffer &indexBuffer
 		);
 		static void end(vk::raii::CommandBuffer &commandBuffer);
 		static void beginRenderPass(
