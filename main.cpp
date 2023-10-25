@@ -46,7 +46,7 @@ void keyCallback(
 
 std::tuple<std::vector<Vertex>, std::vector<uint32_t>> loadObj(const char *filename) {
 	tinyobj::ObjReaderConfig config{};
-	config.triangulate = false;
+	config.triangulate = true;
 	tinyobj::ObjReader objReader{};
 	objReader.ParseFromFile(
 			filename,
@@ -103,8 +103,8 @@ int main() {
 	);
 
 	GLFWwindow *window = glfwCreateWindow(
-			1920,
-			1080,
+			1600,
+			900,
 			"Testing Vulkan!",
 			nullptr,
 			nullptr
@@ -256,7 +256,7 @@ int main() {
 	std::tie(
 			vertices,
 			indices
-	) = loadObj("models/bunny.obj");
+	) = loadObj("models/monkey.obj");
 
 	// Create staging and vertex buffers and upload data
 	auto physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
@@ -434,7 +434,7 @@ int main() {
 	UniformBufferObject ubo{};
 	ubo.projection = glm::perspective(
 			glm::radians(45.f),
-			1920.f / 1080.f,
+			1600.f / 900.f,
 			0.1f,
 			2000.f
 	);
@@ -597,20 +597,26 @@ int main() {
 			surfaceCapabilities.currentExtent
 	};
 
-	auto startTime = std::chrono::high_resolution_clock::now();
+	struct ModelSettings {
+		struct {
+			float x, y, z;
+		} pos{
+				0.f,
+				5.f,
+				2.f
+		};
+		struct {
+			float x, y, z;
+		} rotation{};
+	} modelSettings{};
 
-	float input = 0.f;
-	bool x = false, y = false, z = true;
-	struct Pos {
-		float x;
-		float y;
-		float z;
-	} pos;
-	pos.x = 5.f;
-	pos.y = 5.f;
-	pos.z = 5.f;
+	auto lastTime = std::chrono::high_resolution_clock::now();
 
 	while (!glfwWindowShouldClose(window)) {
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		lastTime = currentTime;
+
 		glfwPollEvents();
 
 		res = device.waitForFences(
@@ -626,43 +632,50 @@ int main() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 		ImGui::Begin("Settings");
-		ImGui::Text("Rotation");
+		ImGui::Text("Model Rotation");
 		ImGui::SliderFloat(
-				"Degrees/S",
-				&input,
-				-180.f,
-				180.f
+				"World X",
+				&modelSettings.rotation.x,
+				-360.f,
+				360.f
 		);
-		ImGui::Checkbox(
-				"X",
-				&x
-		);
-		ImGui::Checkbox(
-				"Y",
-				&y
-		);
-		ImGui::Checkbox(
-				"Z",
-				&z
-		);
-		ImGui::Text("Camera Pos");
 		ImGui::SliderFloat(
-				"X Pos",
-				&pos.x,
+				"World Y",
+				&modelSettings.rotation.y,
+				-360.f,
+				360.f
+		);
+		ImGui::SliderFloat(
+				"World Z",
+				&modelSettings.rotation.z,
+				-360.f,
+				360.f
+		);
+		ImGui::Text("Camera Position");
+		ImGui::SliderFloat(
+				"Camera X",
+				&modelSettings.pos.x,
 				-1000.f,
 				1000.f
 		);
 		ImGui::SliderFloat(
-				"Y Pos",
-				&pos.y,
+				"Camera Y",
+				&modelSettings.pos.y,
 				-1000.f,
 				1000.f
 		);
 		ImGui::SliderFloat(
-				"Z Pos",
-				&pos.z,
+				"Camera Z",
+				&modelSettings.pos.z,
 				-1000.f,
 				1000.f
+		);
+		bool resetPressed = ImGui::Button(
+				"Reset",
+				{
+						100.f,
+						25.f
+				}
 		);
 		ImGui::End();
 
@@ -672,9 +685,9 @@ int main() {
 
 		ubo.view = glm::lookAt(
 				{
-						pos.x,
-						pos.y,
-						pos.z
+						modelSettings.pos.x,
+						modelSettings.pos.y,
+						modelSettings.pos.z
 				},
 				glm::vec3{},
 				{
@@ -684,16 +697,41 @@ int main() {
 				}
 		);
 
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-		ubo.model = glm::rotate(
-				glm::mat4(1.f),
-				time * glm::radians(input),
-				glm::vec3(
-						x,
-						y,
-						z
-				));
+		if (resetPressed) {
+			ubo.model = glm::identity<glm::mat4>();
+			modelSettings.rotation.x = 0;
+			modelSettings.rotation.y = 0;
+			modelSettings.rotation.z = 0;
+		} else {
+			glm::mat4 xRot = glm::rotate(
+					glm::identity<glm::mat4>(),
+					glm::radians(modelSettings.rotation.x),
+					glm::vec3(
+							1.f,
+							0.f,
+							0.f
+					)
+			);
+			glm::mat4 yRot = glm::rotate(
+					glm::identity<glm::mat4>(),
+					glm::radians(modelSettings.rotation.y),
+					glm::vec3(
+							0.f,
+							1.f,
+							0.f
+					)
+			);
+			glm::mat4 zRot = glm::rotate(
+					glm::identity<glm::mat4>(),
+					glm::radians(modelSettings.rotation.z),
+					glm::vec3(
+							0.f,
+							0.f,
+							1.f
+					)
+			);
+			ubo.model = xRot * yRot * zRot;
+		}
 
 		memcpy(
 				uniformBufferMemPtrs[currentFrame],
