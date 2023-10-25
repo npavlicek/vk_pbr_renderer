@@ -1,5 +1,7 @@
 #include "Frame.h"
 
+#include <iostream>
+
 namespace pbr {
 	void Frame::begin(
 			vk::raii::CommandBuffer &commandBuffer,
@@ -26,7 +28,7 @@ namespace pbr {
 		commandBuffer.bindIndexBuffer(
 				*indexBuffer,
 				0,
-				vk::IndexType::eUint16
+				vk::IndexType::eUint32
 		);
 
 		commandBuffer.bindDescriptorSets(
@@ -46,7 +48,7 @@ namespace pbr {
 			vk::raii::CommandBuffer &commandBuffer,
 			vk::raii::RenderPass &renderPass,
 			vk::raii::Framebuffer &frameBuffer,
-			vk::ClearColorValue clearColorValue,
+			std::vector<vk::ClearValue> &clearValues,
 			vk::Rect2D renderArea,
 			vk::SubpassContents subPassContents
 	) {
@@ -55,10 +57,8 @@ namespace pbr {
 		renderPassBeginInfo.setRenderPass(*renderPass);
 		renderPassBeginInfo.setFramebuffer(*frameBuffer);
 
-		vk::ClearValue clearValue{clearColorValue};
-
-		renderPassBeginInfo.setClearValues(clearValue);
-		renderPassBeginInfo.setClearValueCount(1);
+		renderPassBeginInfo.setClearValues(*clearValues.data());
+		renderPassBeginInfo.setClearValueCount(clearValues.size());
 
 		commandBuffer.beginRenderPass(
 				renderPassBeginInfo,
@@ -77,12 +77,13 @@ namespace pbr {
 	) {
 		vk::Viewport viewport{
 				static_cast<float>(renderArea.offset.x),
-				static_cast<float>(renderArea.offset.y),
-				static_cast<float>(renderArea.extent.width),
 				static_cast<float>(renderArea.extent.height),
+				static_cast<float>(renderArea.extent.width),
+				-static_cast<float>(renderArea.extent.height),
 				0,
 				1
 		};
+
 		commandBuffer.setScissor(
 				0,
 				renderArea

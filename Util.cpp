@@ -209,21 +209,46 @@ namespace util {
 		};
 	}
 
+	vk::Format selectDepthFormat(vk::raii::PhysicalDevice &physicalDevice) {
+		std::vector<vk::Format> depthFormats{
+				vk::Format::eD32Sfloat,
+				vk::Format::eD32SfloatS8Uint,
+				vk::Format::eD24UnormS8Uint
+		};
+
+		std::optional<vk::Format> selectedFormat;
+		for (const auto &depthFormat: depthFormats) {
+			vk::FormatProperties formatProperties = physicalDevice.getFormatProperties(depthFormat);
+			if (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+				selectedFormat = depthFormat;
+				break;
+			}
+		}
+
+		if (!selectedFormat.has_value()) {
+			std::cerr << "Could not find required depth format!" << std::endl;
+			throw std::runtime_error("selectDepthFormat");
+		}
+
+		return selectedFormat.value();
+	}
+
 	std::vector<vk::raii::ImageView> createImageViews(
 			vk::raii::Device &device,
 			std::vector<vk::Image> &images,
-			vk::SurfaceFormatKHR &swapChainFormat
+			vk::Format &format,
+			vk::ImageAspectFlags imageAspectFlags
 	) {
 		std::vector<vk::raii::ImageView> res;
 		res.reserve(images.size());
 
 		vk::ImageViewCreateInfo imageViewCreateInfo;
 		imageViewCreateInfo.setComponents({});
-		imageViewCreateInfo.setFormat(swapChainFormat.format);
+		imageViewCreateInfo.setFormat(format);
 		imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
 		imageViewCreateInfo.setSubresourceRange(
 				{
-						vk::ImageAspectFlagBits::eColor,
+						imageAspectFlags,
 						0,
 						1,
 						0,
@@ -316,9 +341,7 @@ namespace util {
 	createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
-			std::vector<vk::raii::ShaderModule> &shaderModules,
-			vk::SurfaceCapabilitiesKHR surfaceCapabilities,
-			vk::SurfaceFormatKHR surfaceFormat
+			std::vector<vk::raii::ShaderModule> &shaderModules
 	) {
 		// Shader Stages
 		vk::PipelineShaderStageCreateInfo vertexShaderStageCreateInfo;
@@ -364,23 +387,6 @@ namespace util {
 		pipelineInputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
 
 		// Viewport
-		vk::Viewport viewport;
-		viewport.setX(0.f);
-		viewport.setY(0.f);
-		viewport.setMaxDepth(1.f);
-		viewport.setMinDepth(0.f);
-		viewport.setWidth(static_cast<float>(surfaceCapabilities.currentExtent.width));
-		viewport.setHeight(static_cast<float>(surfaceCapabilities.currentExtent.height));
-
-		vk::Rect2D scissor;
-		scissor.setOffset(
-				{
-						0,
-						0
-				}
-		);
-		scissor.setExtent(surfaceCapabilities.currentExtent);
-
 		vk::PipelineViewportStateCreateInfo pipelineViewportStateCreateInfo;
 		pipelineViewportStateCreateInfo.setScissorCount(1);
 		pipelineViewportStateCreateInfo.setViewportCount(1);
@@ -392,8 +398,8 @@ namespace util {
 		pipelineRasterizationStateCreateInfo.setRasterizerDiscardEnable(vk::False);
 		pipelineRasterizationStateCreateInfo.setPolygonMode(vk::PolygonMode::eFill);
 		pipelineRasterizationStateCreateInfo.setLineWidth(1.f);
-		pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlags{vk::CullModeFlagBits::eNone});
-		pipelineRasterizationStateCreateInfo.setFrontFace(vk::FrontFace::eClockwise);
+		pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlags{vk::CullModeFlagBits::eBack});
+		pipelineRasterizationStateCreateInfo.setFrontFace(vk::FrontFace::eCounterClockwise);
 		pipelineRasterizationStateCreateInfo.setDepthBiasEnable(vk::False);
 
 		// Multisampling
@@ -403,6 +409,14 @@ namespace util {
 		pipelineMultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
 
 		// Depth testing
+		vk::PipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo{};
+		pipelineDepthStencilStateCreateInfo.setDepthWriteEnable(vk::True);
+		pipelineDepthStencilStateCreateInfo.setDepthTestEnable(vk::True);
+		pipelineDepthStencilStateCreateInfo.setDepthCompareOp(vk::CompareOp::eLess);
+		pipelineDepthStencilStateCreateInfo.setDepthBoundsTestEnable(vk::False);
+		pipelineDepthStencilStateCreateInfo.setStencilTestEnable(vk::False);
+		pipelineDepthStencilStateCreateInfo.setMinDepthBounds(0.f);
+		pipelineDepthStencilStateCreateInfo.setMaxDepthBounds(1.f);
 
 		// Color blending
 		vk::PipelineColorBlendAttachmentState colorBlendAttachmentState;
@@ -457,6 +471,7 @@ namespace util {
 		graphicsPipelineCreateInfo.setPRasterizationState(&pipelineRasterizationStateCreateInfo);
 		graphicsPipelineCreateInfo.setPVertexInputState(&pipelineVertexInputStateCreateInfo);
 		graphicsPipelineCreateInfo.setPViewportState(&pipelineViewportStateCreateInfo);
+		graphicsPipelineCreateInfo.setPDepthStencilState(&pipelineDepthStencilStateCreateInfo);
 
 		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
 		vk::raii::PipelineCache pipelineCache{
@@ -482,6 +497,7 @@ namespace util {
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ImageView> &imageViews,
+			vk::raii::ImageView &depthImageView,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	) {
 		std::vector<vk::raii::Framebuffer> frameBuffers;
@@ -493,8 +509,13 @@ namespace util {
 		framebufferCreateInfo.setHeight(surfaceCapabilities.currentExtent.height);
 
 		for (auto &imageView: imageViews) {
-			framebufferCreateInfo.setAttachments(*imageView);
-			framebufferCreateInfo.setAttachmentCount(1);
+			std::vector<vk::ImageView> imageViewAttachments{
+					*imageView,
+					*depthImageView
+			};
+
+			framebufferCreateInfo.setAttachments(imageViewAttachments);
+			framebufferCreateInfo.setAttachmentCount(imageViewAttachments.size());
 			frameBuffers.emplace_back(
 					device,
 					framebufferCreateInfo
@@ -506,7 +527,8 @@ namespace util {
 
 	vk::raii::RenderPass createRenderPass(
 			vk::raii::Device &device,
-			vk::SurfaceFormatKHR surfaceFormat
+			vk::SurfaceFormatKHR surfaceFormat,
+			vk::Format depthFormat
 	) {
 		// Render Pass
 		vk::AttachmentDescription attachmentDescription;
@@ -519,6 +541,20 @@ namespace util {
 		attachmentDescription.setSamples(vk::SampleCountFlagBits::e1);
 		attachmentDescription.setFormat(surfaceFormat.format);
 
+		vk::AttachmentDescription depthAttachmentDescription{};
+		depthAttachmentDescription.setFormat(depthFormat);
+		depthAttachmentDescription.setInitialLayout(vk::ImageLayout::eUndefined);
+		depthAttachmentDescription.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+		depthAttachmentDescription.setSamples(vk::SampleCountFlagBits::e1);
+		depthAttachmentDescription.setStoreOp(vk::AttachmentStoreOp::eDontCare);
+		depthAttachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
+		depthAttachmentDescription.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
+		depthAttachmentDescription.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
+
+		vk::AttachmentReference depthAttachmentReference{};
+		depthAttachmentReference.setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+		depthAttachmentReference.setAttachment(1);
+
 		vk::AttachmentReference attachmentReference;
 		attachmentReference.setAttachment(0);
 		attachmentReference.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
@@ -527,18 +563,30 @@ namespace util {
 		subpassDescription.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
 		subpassDescription.setColorAttachmentCount(1);
 		subpassDescription.setColorAttachments(attachmentReference);
+		subpassDescription.setPDepthStencilAttachment(&depthAttachmentReference);
 
 		vk::SubpassDependency subpassDependency;
 		subpassDependency.setSrcSubpass(vk::SubpassExternal);
 		subpassDependency.setDstSubpass(0);
-		subpassDependency.setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+		subpassDependency.setSrcStageMask(
+				vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests
+		);
 		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eNone);
-		subpassDependency.setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		subpassDependency.setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+		subpassDependency.setDstStageMask(
+				vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests
+		);
+		subpassDependency.setDstAccessMask(
+				vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite
+		);
+
+		std::vector<vk::AttachmentDescription> attachments{
+				attachmentDescription,
+				depthAttachmentDescription
+		};
 
 		vk::RenderPassCreateInfo renderPassCreateInfo;
-		renderPassCreateInfo.setAttachmentCount(1);
-		renderPassCreateInfo.setAttachments(attachmentDescription);
+		renderPassCreateInfo.setAttachmentCount(attachments.size());
+		renderPassCreateInfo.setAttachments(attachments);
 		renderPassCreateInfo.setSubpassCount(1);
 		renderPassCreateInfo.setSubpasses(subpassDescription);
 		renderPassCreateInfo.setDependencies(subpassDependency);
@@ -600,6 +648,7 @@ namespace util {
 		};
 
 		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+		descriptorPoolCreateInfo.setFlags(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
 		descriptorPoolCreateInfo.setPoolSizeCount(descriptorPoolSizes.size());
 		descriptorPoolCreateInfo.setPoolSizes(*descriptorPoolSizes.data());
 		descriptorPoolCreateInfo.setMaxSets(1000);
@@ -649,8 +698,10 @@ namespace util {
 			const bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
 			if (isRequiredMemoryType) {
 				if (physicalDeviceMemoryProperties.memoryTypes[memoryTypeIndex].propertyFlags &
-				    memoryProperties)
+				    memoryProperties) {
 					memoryIndex = memoryTypeIndex;
+					break;
+				}
 			}
 		}
 
@@ -682,6 +733,66 @@ namespace util {
 		};
 	}
 
+	// TODO create select memory type function
+	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
+			vk::raii::Device &device,
+			vk::raii::PhysicalDevice &physicalDevice,
+			vk::ImageTiling tiling,
+			vk::ImageUsageFlags imageUsageFlags,
+			vk::Format format,
+			vk::Extent3D extent,
+			vk::ImageType imageType
+	) {
+		vk::ImageCreateInfo imageCreateInfo{};
+		imageCreateInfo.setTiling(tiling);
+		imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+		imageCreateInfo.setUsage(imageUsageFlags);
+		imageCreateInfo.setFormat(format);
+		imageCreateInfo.setSamples(vk::SampleCountFlagBits::e1);
+		imageCreateInfo.setArrayLayers(1);
+		imageCreateInfo.setExtent(extent);
+		imageCreateInfo.setImageType(imageType);
+		imageCreateInfo.setMipLevels(1);
+		imageCreateInfo.setInitialLayout(vk::ImageLayout::eUndefined);
+
+		vk::raii::Image image = device.createImage(imageCreateInfo);
+		vk::MemoryRequirements memoryRequirements = image.getMemoryRequirements();
+		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
+
+		auto memoryTypeBits = memoryRequirements.memoryTypeBits;
+		std::optional<uint32_t> memoryIndex;
+		for (uint32_t i = 0; physicalDeviceMemoryProperties.memoryTypeCount; i++) {
+			if (memoryTypeBits & 1 && physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags &
+			                          vk::MemoryPropertyFlagBits::eDeviceLocal) {
+				memoryIndex = i;
+				break;
+			}
+			memoryTypeBits >>= 1;
+		}
+
+		if (!memoryIndex.has_value()) {
+			std::cerr << "Could not find required image memory type!" << std::endl;
+			throw std::runtime_error("createImage");
+		}
+
+		vk::MemoryAllocateInfo memoryAllocateInfo;
+		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex.value());
+		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
+
+		vk::raii::DeviceMemory imageMemory = device.allocateMemory(memoryAllocateInfo);
+
+		vk::BindImageMemoryInfo bindImageMemoryInfo;
+		bindImageMemoryInfo.setMemory(*imageMemory);
+		bindImageMemoryInfo.setImage(*image);
+		bindImageMemoryInfo.setMemoryOffset(0);
+		device.bindImageMemory2(bindImageMemoryInfo);
+
+		return {
+				std::move(image),
+				std::move(imageMemory)
+		};
+	}
+
 	void uploadVertexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,
@@ -703,7 +814,7 @@ namespace util {
 	void uploadIndexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<uint16_t> &indices
+			const std::vector<uint32_t> &indices
 	) {
 		const auto bufferSize = sizeof(indices[0]) * indices.size();
 		void *data = stagingBufferMemory.mapMemory(

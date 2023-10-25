@@ -53,10 +53,12 @@ namespace util {
 			vk::raii::CommandPool &commandPool,
 			int count
 	);
+	vk::Format selectDepthFormat(vk::raii::PhysicalDevice &physicalDevice);
 	std::vector<vk::raii::ImageView> createImageViews(
 			vk::raii::Device &device,
 			std::vector<vk::Image> &images,
-			vk::SurfaceFormatKHR &swapChainFormat
+			vk::Format &format,
+			vk::ImageAspectFlags imageAspectFlags
 	);
 	std::vector<vk::raii::ShaderModule> createShaderModules(
 			vk::raii::Device &device,
@@ -67,18 +69,18 @@ namespace util {
 	createPipeline(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
-			std::vector<vk::raii::ShaderModule> &shaderModules,
-			vk::SurfaceCapabilitiesKHR surfaceCapabilities,
-			vk::SurfaceFormatKHR surfaceFormat
+			std::vector<vk::raii::ShaderModule> &shaderModules
 	);
 	vk::raii::RenderPass createRenderPass(
 			vk::raii::Device &device,
-			vk::SurfaceFormatKHR surfaceFormat
+			vk::SurfaceFormatKHR surfaceFormat,
+			vk::Format depthFormat
 	);
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
 			vk::raii::Device &device,
 			vk::raii::RenderPass &renderPass,
 			std::vector<vk::raii::ImageView> &imageViews,
+			vk::raii::ImageView &depthImageView,
 			vk::SurfaceCapabilitiesKHR surfaceCapabilities
 	);
 	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device);
@@ -87,11 +89,19 @@ namespace util {
 			vk::raii::DeviceMemory &stagingBufferMemory,
 			const std::vector<Vertex> &vertices
 	);
-
+	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
+			vk::raii::Device &device,
+			vk::raii::PhysicalDevice &physicalDevice,
+			vk::ImageTiling tiling,
+			vk::ImageUsageFlags imageUsageFlags,
+			vk::Format format,
+			vk::Extent3D extent,
+			vk::ImageType imageType
+	);
 	void uploadIndexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<uint16_t> &indices
+			const std::vector<uint32_t> &indices
 	);
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
 			vk::raii::Device &device,

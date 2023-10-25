@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 struct Vertex {
-	glm::vec2 pos;
+	glm::vec3 pos;
 	glm::vec3 color;
 
 	static vk::VertexInputBindingDescription getBindingDescription() {
@@ -23,15 +23,21 @@ struct Vertex {
 		vertexAttributeDescriptions.emplace_back(
 				0,
 				0,
-				vk::Format::eR32G32Sfloat,
-				offsetof(Vertex, pos)
+				vk::Format::eR32G32B32Sfloat,
+				offsetof(
+						Vertex,
+						pos
+				)
 		);
 
 		vertexAttributeDescriptions.emplace_back(
 				1,
 				0,
 				vk::Format::eR32G32B32Sfloat,
-				offsetof(Vertex, color)
+				offsetof(
+						Vertex,
+						color
+				)
 		);
 
 		return vertexAttributeDescriptions;

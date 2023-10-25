@@ -8,7 +8,12 @@
 
 #include <glm/ext.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+
+#include "tiny_obj_loader.h"
+
 #include <chrono>
+#include <string>
 
 #include "Vertex.h"
 #include "Util.h"
@@ -22,22 +27,6 @@ struct UniformBufferObject {
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 projection;
-};
-
-const std::vector<Vertex> vertices{
-		{{-0.5f, -0.5f}, {0.f, 1.f, 1.f}},
-		{{0.5f,  -0.5f}, {0.f, 1.f, 0.f}},
-		{{0.5f,  0.5f},  {0.f, 1.f, 0.f}},
-		{{-0.5f, 0.5f},  {0.f, 0.f, 1.f}}
-};
-
-const std::vector<uint16_t> indices{
-		0,
-		1,
-		2,
-		2,
-		3,
-		0
 };
 
 void keyCallback(
@@ -55,6 +44,51 @@ void keyCallback(
 	}
 }
 
+std::tuple<std::vector<Vertex>, std::vector<uint32_t>> loadObj(const char *filename) {
+	tinyobj::ObjReaderConfig config{};
+	config.triangulate = false;
+	tinyobj::ObjReader objReader{};
+	objReader.ParseFromFile(
+			filename,
+			config
+	);
+
+	const tinyobj::attrib_t &attrib = objReader.GetAttrib();
+	const std::vector<tinyobj::shape_t> &shapes = objReader.GetShapes();
+	//const std::vector<tinyobj::material_t> &materials = objReader.GetMaterials();
+
+	std::srand(std::time(nullptr));
+
+	std::vector<Vertex> vertices{};
+
+	// MAKE SURE TO USE THE RIGHT INTEGER TYPE
+	// Using 16 bits restricts us to small indices
+	std::vector<uint32_t> indices{};
+
+	for (int vertexIndex = 0; vertexIndex < static_cast<int>(attrib.vertices.size()); vertexIndex += 3) {
+		Vertex vertex{};
+		vertex.pos[0] = attrib.vertices[vertexIndex];
+		vertex.pos[1] = attrib.vertices[vertexIndex + 1];
+		vertex.pos[2] = attrib.vertices[vertexIndex + 2];
+		//float color = (static_cast<float>(std::rand()) / RAND_MAX) * 0.5f;
+		vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertices.push_back(vertex);
+	}
+
+	for (const auto &shape: shapes) {
+		for (const auto &index: shape.mesh.indices) {
+			indices.push_back(index.vertex_index);
+		}
+	}
+
+	return {
+			vertices,
+			indices
+	};
+}
+
 int main() {
 	if (!glfwInit())
 		throw std::runtime_error("Could not initialize GLFW");
@@ -69,8 +103,8 @@ int main() {
 	);
 
 	GLFWwindow *window = glfwCreateWindow(
-			1280,
-			720,
+			1920,
+			1080,
 			"Testing Vulkan!",
 			nullptr,
 			nullptr
@@ -128,7 +162,8 @@ int main() {
 	auto imageViews = util::createImageViews(
 			device,
 			images,
-			swapChainFormat
+			swapChainFormat.format,
+			vk::ImageAspectFlagBits::eColor
 	);
 	auto commandPool = util::createCommandPool(
 			device,
@@ -144,10 +179,51 @@ int main() {
 			"shaders/vert.spv",
 			"shaders/frag.spv"
 	);
+
+	// BEGIN DEPTH IMAGE
+
+	vk::Format depthImageFormat = util::selectDepthFormat(physicalDevice);
+
+	vk::raii::DeviceMemory depthImageMemory{nullptr};
+	vk::raii::Image depthImage{nullptr};
+	std::tie(
+			depthImage,
+			depthImageMemory
+	) = util::createImage(
+			device,
+			physicalDevice,
+			vk::ImageTiling::eOptimal,
+			vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			depthImageFormat,
+			{
+					surfaceCapabilities.currentExtent.width,
+					surfaceCapabilities.currentExtent.height,
+					1
+			},
+			vk::ImageType::e2D
+	);
+
+	std::vector<vk::Image> depthImages{*depthImage};
+
+	vk::raii::ImageView depthImageView = std::move(
+			util::createImageViews(
+					device,
+					depthImages,
+					depthImageFormat,
+					vk::ImageAspectFlagBits::eDepth
+			)[0]
+	);
+
+	depthImages.clear();
+
+	// END DEPTH IMAGE
+
 	auto renderPass = util::createRenderPass(
 			device,
-			swapChainFormat
+			swapChainFormat,
+			depthImageFormat
 	);
+
 	vk::raii::Pipeline pipeline{nullptr};
 	vk::raii::PipelineLayout pipelineLayout{nullptr};
 	vk::raii::PipelineCache pipelineCache{nullptr};
@@ -160,20 +236,27 @@ int main() {
 	) = util::createPipeline(
 			device,
 			renderPass,
-			shaderModules,
-			surfaceCapabilities,
-			swapChainFormat
-	);
-	auto frameBuffers = util::createFrameBuffers(
-			device,
-			renderPass,
-			imageViews,
-			surfaceCapabilities
+			shaderModules
 	);
 	auto queue = device.getQueue(
 			queueFamilyIndex,
 			0
 	);
+
+	auto frameBuffers = util::createFrameBuffers(
+			device,
+			renderPass,
+			imageViews,
+			depthImageView,
+			surfaceCapabilities
+	);
+
+	std::vector<Vertex> vertices{};
+	std::vector<uint32_t> indices{};
+	std::tie(
+			vertices,
+			indices
+	) = loadObj("models/bunny.obj");
 
 	// Create staging and vertex buffers and upload data
 	auto physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
@@ -351,16 +434,15 @@ int main() {
 	UniformBufferObject ubo{};
 	ubo.projection = glm::perspective(
 			glm::radians(45.f),
-			1280.f / 720.f,
+			1920.f / 1080.f,
 			0.1f,
-			10.f
+			2000.f
 	);
-	ubo.projection[1][1] *= -1;
 	ubo.view = glm::lookAt(
 			glm::vec3{
-					2.f,
-					2.f,
-					2.f
+					5.f,
+					5.f,
+					5.f
 			},
 			glm::vec3{
 					0.f,
@@ -417,7 +499,6 @@ int main() {
 	}
 
 	// END DESCRIPTOR SETS
-
 
 	// BEGIN IMGUI
 
@@ -500,6 +581,14 @@ int main() {
 			0.f,
 			1.f
 	};
+	vk::ClearDepthStencilValue clearDepthValue{
+			1.f,
+			0
+	};
+	std::vector<vk::ClearValue> clearValues{
+			clearColorValue,
+			clearDepthValue
+	};
 	vk::Rect2D renderArea{
 			{
 					0,
@@ -512,6 +601,14 @@ int main() {
 
 	float input = 0.f;
 	bool x = false, y = false, z = true;
+	struct Pos {
+		float x;
+		float y;
+		float z;
+	} pos;
+	pos.x = 5.f;
+	pos.y = 5.f;
+	pos.z = 5.f;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -529,7 +626,7 @@ int main() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 		ImGui::Begin("Settings");
-		std::cout << input << std::endl;
+		ImGui::Text("Rotation");
 		ImGui::SliderFloat(
 				"Degrees/S",
 				&input,
@@ -548,11 +645,44 @@ int main() {
 				"Z",
 				&z
 		);
+		ImGui::Text("Camera Pos");
+		ImGui::SliderFloat(
+				"X Pos",
+				&pos.x,
+				-1000.f,
+				1000.f
+		);
+		ImGui::SliderFloat(
+				"Y Pos",
+				&pos.y,
+				-1000.f,
+				1000.f
+		);
+		ImGui::SliderFloat(
+				"Z Pos",
+				&pos.z,
+				-1000.f,
+				1000.f
+		);
 		ImGui::End();
 
 		// IMGUI END NEW FRAME
 
 		// Update model matrix
+
+		ubo.view = glm::lookAt(
+				{
+						pos.x,
+						pos.y,
+						pos.z
+				},
+				glm::vec3{},
+				{
+						0,
+						0,
+						1.f
+				}
+		);
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
@@ -572,7 +702,6 @@ int main() {
 		);
 
 		// end update model matrix
-
 
 		uint32_t imageIndex;
 		std::tie(
@@ -596,7 +725,7 @@ int main() {
 				commandBuffers[currentFrame],
 				renderPass,
 				frameBuffers[imageIndex],
-				clearColorValue,
+				clearValues,
 				renderArea
 		);
 		pbr::Frame::draw(

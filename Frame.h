@@ -22,7 +22,7 @@ namespace pbr {
 				vk::raii::CommandBuffer &commandBuffer,
 				vk::raii::RenderPass &renderPass,
 				vk::raii::Framebuffer &frameBuffer,
-				vk::ClearColorValue clearColorValue,
+				std::vector<vk::ClearValue> &clearValues,
 				vk::Rect2D renderArea,
 				vk::SubpassContents subPassContents = vk::SubpassContents::eInline
 		);
