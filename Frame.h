@@ -15,7 +15,7 @@ namespace pbr {
 				vk::raii::PipelineLayout &pipelineLayout,
 				vk::raii::Buffer &vertexBuffer,
 				vk::raii::Buffer &indexBuffer,
-				vk::raii::DescriptorSet &descriptorSet
+				std::vector<vk::DescriptorSet> &descriptorSets
 		);
 		static void end(vk::raii::CommandBuffer &commandBuffer);
 		static void beginRenderPass(

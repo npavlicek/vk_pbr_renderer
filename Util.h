@@ -58,7 +58,13 @@ namespace util {
 	std::vector<vk::raii::ImageView> createImageViews(
 			vk::raii::Device &device,
 			std::vector<vk::Image> &images,
-			vk::Format &format,
+			vk::Format format,
+			vk::ImageAspectFlags imageAspectFlags
+	);
+	vk::raii::ImageView createImageView(
+			vk::raii::Device &device,
+			vk::Image image,
+			vk::Format format,
 			vk::ImageAspectFlags imageAspectFlags
 	);
 	std::vector<vk::raii::ShaderModule> createShaderModules(
@@ -97,12 +103,13 @@ namespace util {
 			vk::ImageUsageFlags imageUsageFlags,
 			vk::Format format,
 			vk::Extent3D extent,
-			vk::ImageType imageType
+			vk::ImageType imageType,
+			vk::MemoryPropertyFlags memoryPropertyFlags
 	);
 	void uploadIndexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<uint32_t> &indices
+			const std::vector<uint16_t> &indices
 	);
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
 			vk::raii::Device &device,
@@ -111,10 +118,16 @@ namespace util {
 			vk::DeviceSize bufferSize,
 			vk::Flags<vk::BufferUsageFlagBits> usage
 	);
-	vk::raii::DescriptorSet createDescriptorSet(
+	std::vector<vk::raii::DescriptorSet> createDescriptorSets(
 			vk::raii::Device &device,
 			vk::raii::DescriptorPool &descriptorPool,
-			vk::raii::DescriptorSetLayout &descriptorSetLayout
+			vk::raii::DescriptorSetLayout &descriptorSetLayout,
+			int descriptorSetCount
+	);
+	uint32_t findMemoryIndex(
+			vk::MemoryRequirements memoryRequirements,
+			vk::MemoryPropertyFlags memoryPropertyFlags,
+			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties
 	);
 } // util
 

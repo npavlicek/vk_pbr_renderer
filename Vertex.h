@@ -8,6 +8,7 @@
 struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 color;
+	glm::vec2 texCoords;
 
 	static vk::VertexInputBindingDescription getBindingDescription() {
 		vk::VertexInputBindingDescription vertexInputBindingDescription;
@@ -37,6 +38,16 @@ struct Vertex {
 				offsetof(
 						Vertex,
 						color
+				)
+		);
+
+		vertexAttributeDescriptions.emplace_back(
+				2,
+				0,
+				vk::Format::eR32G32Sfloat,
+				offsetof(
+						Vertex,
+						texCoords
 				)
 		);
 

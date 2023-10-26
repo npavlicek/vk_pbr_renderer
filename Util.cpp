@@ -115,11 +115,15 @@ namespace util {
 
 		std::vector<const char *> enabledExtensions{"VK_KHR_swapchain"};
 
+		vk::PhysicalDeviceFeatures physicalDeviceFeatures;
+		physicalDeviceFeatures.setSamplerAnisotropy(vk::True);
+
 		vk::DeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo.setQueueCreateInfoCount(1);
 		deviceCreateInfo.setQueueCreateInfos(deviceQueueCreateInfo);
 		deviceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
 		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
+		deviceCreateInfo.setPEnabledFeatures(&physicalDeviceFeatures);
 
 		return {
 				physicalDevice,
@@ -261,14 +265,33 @@ namespace util {
 	std::vector<vk::raii::ImageView> createImageViews(
 			vk::raii::Device &device,
 			std::vector<vk::Image> &images,
-			vk::Format &format,
+			vk::Format format,
 			vk::ImageAspectFlags imageAspectFlags
 	) {
 		std::vector<vk::raii::ImageView> res;
 		res.reserve(images.size());
 
-		vk::ImageViewCreateInfo imageViewCreateInfo;
-		imageViewCreateInfo.setComponents({});
+		for (auto image: images) {
+			res.push_back(
+					createImageView(
+							device,
+							image,
+							format,
+							imageAspectFlags
+					)
+			);
+		}
+
+		return res;
+	}
+
+	vk::raii::ImageView createImageView(
+			vk::raii::Device &device,
+			vk::Image image,
+			vk::Format format,
+			vk::ImageAspectFlags imageAspectFlags
+	) {
+		vk::ImageViewCreateInfo imageViewCreateInfo{};
 		imageViewCreateInfo.setFormat(format);
 		imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
 		imageViewCreateInfo.setSubresourceRange(
@@ -280,16 +303,12 @@ namespace util {
 						1
 				}
 		);
+		imageViewCreateInfo.setImage(image);
 
-		for (auto image: images) {
-			imageViewCreateInfo.setImage(image);
-			res.emplace_back(
-					device,
-					imageViewCreateInfo
-			);
-		}
-
-		return res;
+		return {
+				device,
+				imageViewCreateInfo
+		};
 	}
 
 	std::vector<uint32_t> loadShaderCode(const char *path) {
@@ -459,15 +478,26 @@ namespace util {
 		pipelineColorBlendStateCreateInfo.setLogicOpEnable(vk::False);
 
 		// Descriptor Sets Layout
-		vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding;
-		descriptorSetLayoutBinding.setBinding(0);
-		descriptorSetLayoutBinding.setDescriptorCount(1);
-		descriptorSetLayoutBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-		descriptorSetLayoutBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+		vk::DescriptorSetLayoutBinding uboLayoutBinding{};
+		uboLayoutBinding.setBinding(0);
+		uboLayoutBinding.setDescriptorCount(1);
+		uboLayoutBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+		uboLayoutBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
-		descriptorSetLayoutCreateInfo.setBindingCount(1);
-		descriptorSetLayoutCreateInfo.setBindings(descriptorSetLayoutBinding);
+		vk::DescriptorSetLayoutBinding imageSamplerBinding{};
+		imageSamplerBinding.setBinding(1);
+		imageSamplerBinding.setDescriptorCount(1);
+		imageSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+		imageSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+		std::array<vk::DescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings = {
+				uboLayoutBinding,
+				imageSamplerBinding
+		};
+
+		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+		descriptorSetLayoutCreateInfo.setBindingCount(descriptorSetLayoutBindings.size());
+		descriptorSetLayoutCreateInfo.setBindings(descriptorSetLayoutBindings);
 
 		vk::raii::DescriptorSetLayout descriptorSetLayout{
 				device,
@@ -684,19 +714,24 @@ namespace util {
 		};
 	}
 
-	vk::raii::DescriptorSet createDescriptorSet(
+	std::vector<vk::raii::DescriptorSet> createDescriptorSets(
 			vk::raii::Device &device,
 			vk::raii::DescriptorPool &descriptorPool,
-			vk::raii::DescriptorSetLayout &descriptorSetLayout
+			vk::raii::DescriptorSetLayout &descriptorSetLayout,
+			int descriptorSetCount
 	) {
-		vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
-		descriptorSetAllocateInfo.setDescriptorPool(*descriptorPool);
-		descriptorSetAllocateInfo.setSetLayouts(*descriptorSetLayout);
-		descriptorSetAllocateInfo.setDescriptorSetCount(1);
+		std::vector<vk::raii::DescriptorSet> res;
 
-		auto descriptorSet = device.allocateDescriptorSets(descriptorSetAllocateInfo);
+		for (int i = 0; i < descriptorSetCount; i++) {
+			vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+			descriptorSetAllocateInfo.setDescriptorPool(*descriptorPool);
+			descriptorSetAllocateInfo.setSetLayouts(*descriptorSetLayout);
+			descriptorSetAllocateInfo.setDescriptorSetCount(1);
 
-		return std::move(descriptorSet[0]);
+			res.push_back(std::move(device.allocateDescriptorSets(descriptorSetAllocateInfo)[0]));
+		}
+
+		return res;
 	}
 
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
@@ -711,42 +746,27 @@ namespace util {
 		bufferCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
 		bufferCreateInfo.setSize(bufferSize);
 
-		vk::DeviceBufferMemoryRequirements deviceBufferMemoryRequirements;
-		deviceBufferMemoryRequirements.pCreateInfo = &bufferCreateInfo;
-		auto memoryRequirements2 = device.getBufferMemoryRequirements(deviceBufferMemoryRequirements);
-		auto memoryRequirements = memoryRequirements2.memoryRequirements;
+		vk::raii::Buffer buffer{
+				device,
+				bufferCreateInfo
+		};
 
-		std::optional<int> memoryIndex;
-		for (uint32_t memoryTypeIndex = 0;
-		     memoryTypeIndex < physicalDeviceMemoryProperties.memoryTypeCount; memoryTypeIndex++) {
-			const int memoryTypeBits = (1 << memoryTypeIndex);
-			const bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
-			if (isRequiredMemoryType) {
-				if (physicalDeviceMemoryProperties.memoryTypes[memoryTypeIndex].propertyFlags &
-				    memoryProperties) {
-					memoryIndex = memoryTypeIndex;
-					break;
-				}
-			}
-		}
+		const auto memoryRequirements = buffer.getMemoryRequirements();
 
-		if (!memoryIndex.has_value()) {
-			std::cerr << "Could not find required memory type!" << std::endl;
-			throw std::runtime_error("Vertex buffer creation error");
-		}
+		const auto memoryIndex = findMemoryIndex(
+				memoryRequirements,
+				memoryProperties,
+				physicalDeviceMemoryProperties
+		);
 
 		vk::MemoryAllocateInfo memoryAllocateInfo;
-		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex.value());
+		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex);
 		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
 		vk::raii::DeviceMemory deviceMemory{
 				device,
 				memoryAllocateInfo
 		};
 
-		vk::raii::Buffer buffer{
-				device,
-				bufferCreateInfo
-		};
 		buffer.bindMemory(
 				*deviceMemory,
 				0
@@ -758,7 +778,25 @@ namespace util {
 		};
 	}
 
-	// TODO create select memory type function
+	uint32_t findMemoryIndex(
+			vk::MemoryRequirements memoryRequirements,
+			vk::MemoryPropertyFlags memoryPropertyFlags,
+			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties
+	) {
+		auto requiredMemoryBits = memoryRequirements.memoryTypeBits;
+
+		for (uint32_t i = 0; physicalDeviceMemoryProperties.memoryTypeCount; i++) {
+			const uint32_t memoryTypeBits = 1 << i;
+			const bool isRequiredMemoryType = memoryTypeBits & requiredMemoryBits;
+			if (isRequiredMemoryType &&
+			    physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags) {
+				return i;
+			}
+		}
+
+		throw std::runtime_error("Failed to find required memory type!");
+	}
+
 	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
 			vk::raii::Device &device,
 			vk::raii::PhysicalDevice &physicalDevice,
@@ -766,7 +804,8 @@ namespace util {
 			vk::ImageUsageFlags imageUsageFlags,
 			vk::Format format,
 			vk::Extent3D extent,
-			vk::ImageType imageType
+			vk::ImageType imageType,
+			vk::MemoryPropertyFlags memoryPropertyFlags
 	) {
 		vk::ImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.setTiling(tiling);
@@ -784,33 +823,22 @@ namespace util {
 		vk::MemoryRequirements memoryRequirements = image.getMemoryRequirements();
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
 
-		auto memoryTypeBits = memoryRequirements.memoryTypeBits;
-		std::optional<uint32_t> memoryIndex;
-		for (uint32_t i = 0; physicalDeviceMemoryProperties.memoryTypeCount; i++) {
-			if (memoryTypeBits & 1 && physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags &
-			                          vk::MemoryPropertyFlagBits::eDeviceLocal) {
-				memoryIndex = i;
-				break;
-			}
-			memoryTypeBits >>= 1;
-		}
-
-		if (!memoryIndex.has_value()) {
-			std::cerr << "Could not find required image memory type!" << std::endl;
-			throw std::runtime_error("createImage");
-		}
+		const auto memoryIndex = findMemoryIndex(
+				memoryRequirements,
+				memoryPropertyFlags,
+				physicalDeviceMemoryProperties
+		);
 
 		vk::MemoryAllocateInfo memoryAllocateInfo;
-		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex.value());
+		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex);
 		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
 
 		vk::raii::DeviceMemory imageMemory = device.allocateMemory(memoryAllocateInfo);
 
-		vk::BindImageMemoryInfo bindImageMemoryInfo;
-		bindImageMemoryInfo.setMemory(*imageMemory);
-		bindImageMemoryInfo.setImage(*image);
-		bindImageMemoryInfo.setMemoryOffset(0);
-		device.bindImageMemory2(bindImageMemoryInfo);
+		image.bindMemory(
+				*imageMemory,
+				0
+		);
 
 		return {
 				std::move(image),
@@ -839,7 +867,7 @@ namespace util {
 	void uploadIndexData(
 			vk::raii::Device &device,
 			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<uint32_t> &indices
+			const std::vector<uint16_t> &indices
 	) {
 		const auto bufferSize = sizeof(indices[0]) * indices.size();
 		void *data = stagingBufferMemory.mapMemory(

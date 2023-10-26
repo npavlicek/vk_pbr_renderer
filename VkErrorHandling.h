@@ -9,7 +9,7 @@
 
 class VkResCheck {
 public:
-	VkResCheck() {};
+	VkResCheck() = default;
 
 	VkResCheck(const vk::Result &rhs) { // NOLINT
 		lastResult = rhs;
@@ -61,7 +61,7 @@ public:
 	}
 
 private:
-	vk::Result lastResult;
+	vk::Result lastResult{};
 };
 
 #endif //VK_PBR_RENDERER_VKERRORHANDLING_H

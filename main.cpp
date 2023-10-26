@@ -1,3 +1,6 @@
+#define TINYOBJLOADER_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+
 // KEEP VULKAN INCLUDED AT THE TOP OR THINGS WILL BREAK
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
@@ -8,8 +11,6 @@
 
 #include <glm/ext.hpp>
 
-#define TINYOBJLOADER_IMPLEMENTATION
-
 #include "tiny_obj_loader.h"
 
 #include <chrono>
@@ -19,6 +20,7 @@
 #include "Util.h"
 #include "Frame.h"
 #include "VkErrorHandling.h"
+#include "Texture.h"
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
@@ -44,7 +46,7 @@ void keyCallback(
 	}
 }
 
-std::tuple<std::vector<Vertex>, std::vector<uint32_t>> loadObj(const char *filename) {
+std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filename) {
 	tinyobj::ObjReaderConfig config{};
 	config.triangulate = true;
 	tinyobj::ObjReader objReader{};
@@ -63,7 +65,7 @@ std::tuple<std::vector<Vertex>, std::vector<uint32_t>> loadObj(const char *filen
 
 	// MAKE SURE TO USE THE RIGHT INTEGER TYPE
 	// Using 16 bits restricts us to small indices
-	std::vector<uint32_t> indices{};
+	std::vector<uint16_t> indices;
 
 	for (int vertexIndex = 0; vertexIndex < static_cast<int>(attrib.vertices.size()); vertexIndex += 3) {
 		Vertex vertex{};
@@ -77,15 +79,27 @@ std::tuple<std::vector<Vertex>, std::vector<uint32_t>> loadObj(const char *filen
 		vertices.push_back(vertex);
 	}
 
-	for (const auto &shape: shapes) {
-		for (const auto &index: shape.mesh.indices) {
-			indices.push_back(index.vertex_index);
-		}
+	int vertexIndex = 0;
+	for (int texIndex = 0; texIndex < static_cast<int>(attrib.texcoords.size()); texIndex += 2) {
+		vertices[vertexIndex].texCoords[0] = attrib.texcoords[texIndex];
+		vertices[vertexIndex].texCoords[1] = attrib.texcoords[texIndex + 1];
+		vertexIndex++;
 	}
 
+	try {
+		for (const auto &shape: shapes) {
+			for (const auto &index: shape.mesh.indices) {
+				indices.push_back(static_cast<uint16_t>(index.vertex_index));
+			}
+		}
+	} catch (const std::exception &err) {
+		std::cout << err.what() << std::endl;
+	}
+
+
 	return {
-			vertices,
-			indices
+			std::move(vertices),
+			std::move(indices)
 	};
 }
 
@@ -202,7 +216,8 @@ int main() {
 					surfaceCapabilities.currentExtent.height,
 					1
 			},
-			vk::ImageType::e2D
+			vk::ImageType::e2D,
+			vk::MemoryPropertyFlagBits::eDeviceLocal
 	);
 
 	std::vector<vk::Image> depthImages{*depthImage};
@@ -254,7 +269,7 @@ int main() {
 	);
 
 	std::vector<Vertex> vertices{};
-	std::vector<uint32_t> indices{};
+	std::vector<uint16_t> indices{};
 	std::tie(
 			vertices,
 			indices
@@ -468,17 +483,43 @@ int main() {
 
 	// END UNIFORM BUFFERS
 
+	// BEGIN TEXTURES
+
+	Texture texture(
+			device,
+			physicalDevice,
+			commandBuffers[0],
+			queue,
+			"res/monkey.png"
+	);
+
+	// END TEXTURES
+
 	// DESCRIPTOR SETS
 
 	auto descriptorPool = util::createDescriptorPool(
 			device
 	);
 
-	auto descriptorSet = util::createDescriptorSet(
+	auto descriptorSets = util::createDescriptorSets(
 			device,
 			descriptorPool,
-			descriptorSetLayout
+			descriptorSetLayout,
+			1
 	);
+
+	std::vector<vk::DescriptorSet> drawDescriptorSets;
+	std::for_each(
+			descriptorSets.begin(),
+			descriptorSets.end(),
+			[&drawDescriptorSets](vk::raii::DescriptorSet &descriptorSet) mutable {
+				std::cout << "descriptor set: " << *descriptorSet << std::endl;
+				drawDescriptorSets.push_back(*descriptorSet);
+			}
+	);
+	std::cout << "Descriptor set count " << drawDescriptorSets.size() << std::endl;
+
+	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vk::DescriptorBufferInfo descriptorBufferInfo{};
@@ -486,19 +527,30 @@ int main() {
 		descriptorBufferInfo.setBuffer(*uniformBuffers[i]);
 		descriptorBufferInfo.setRange(sizeof(UniformBufferObject));
 
-		vk::WriteDescriptorSet writeDescriptorSet{};
-		writeDescriptorSet.setDstSet(*descriptorSet);
-		writeDescriptorSet.setDstBinding(0);
-		writeDescriptorSet.setDstArrayElement(0);
-		writeDescriptorSet.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-		writeDescriptorSet.setDescriptorCount(1);
-		writeDescriptorSet.setBufferInfo(descriptorBufferInfo);
-
-		device.updateDescriptorSets(
-				writeDescriptorSet,
-				nullptr
-		);
+		writeDescriptorSets[i].setDstSet(*descriptorSets[0]);
+		writeDescriptorSets[i].setDstBinding(0);
+		writeDescriptorSets[i].setDstArrayElement(0);
+		writeDescriptorSets[i].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+		writeDescriptorSets[i].setDescriptorCount(1);
+		writeDescriptorSets[i].setBufferInfo(descriptorBufferInfo);
 	}
+
+	vk::DescriptorImageInfo imageDescriptorInfo{};
+	imageDescriptorInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+	imageDescriptorInfo.setSampler(texture.getSampler());
+	imageDescriptorInfo.setImageView(texture.getImageView());
+
+	writeDescriptorSets[2].setDstSet(*descriptorSets[0]);
+	writeDescriptorSets[2].setDstBinding(1);
+	writeDescriptorSets[2].setDstArrayElement(0);
+	writeDescriptorSets[2].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+	writeDescriptorSets[2].setDescriptorCount(1);
+	writeDescriptorSets[2].setImageInfo(imageDescriptorInfo);
+
+	device.updateDescriptorSets(
+			writeDescriptorSets,
+			nullptr
+	);
 
 	// END DESCRIPTOR SETS
 
@@ -562,6 +614,8 @@ int main() {
 
 	// END IMGUI
 
+	// BEGIN SYNCHRONIZATION 
+
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
@@ -576,6 +630,8 @@ int main() {
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		inFlightFences.push_back(device.createFence({vk::FenceCreateFlagBits::eSignaled}));
 	}
+
+	// END SYNCHRONIZATION
 
 	vk::ClearColorValue clearColorValue{
 			0.f,
@@ -611,6 +667,8 @@ int main() {
 			float x, y, z;
 		} rotation{};
 	} modelSettings{};
+
+	commandPool.reset();
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -705,34 +763,30 @@ int main() {
 			modelSettings.rotation.y = 0;
 			modelSettings.rotation.z = 0;
 		} else {
-			glm::mat4 xRot = glm::rotate(
-					glm::identity<glm::mat4>(),
-					glm::radians(modelSettings.rotation.x),
-					glm::vec3(
-							1.f,
-							0.f,
-							0.f
-					)
-			);
-			glm::mat4 yRot = glm::rotate(
-					glm::identity<glm::mat4>(),
-					glm::radians(modelSettings.rotation.y),
-					glm::vec3(
-							0.f,
-							1.f,
-							0.f
-					)
-			);
-			glm::mat4 zRot = glm::rotate(
-					glm::identity<glm::mat4>(),
-					glm::radians(modelSettings.rotation.z),
-					glm::vec3(
-							0.f,
-							0.f,
-							1.f
-					)
-			);
-			ubo.model = xRot * yRot * zRot;
+			glm::vec3 xRot = glm::vec3(
+					1.f,
+					0.f,
+					0.f
+			) * glm::radians(modelSettings.rotation.x);
+			glm::vec3 yRot = glm::vec3(
+					0.f,
+					1.f,
+					0.f
+			) * glm::radians(modelSettings.rotation.y);
+			glm::vec3 zRot = glm::vec3(
+					0.f,
+					0.f,
+					1.f
+			) * glm::radians(modelSettings.rotation.z);
+			glm::vec3 finalRot = xRot + yRot + zRot;
+			if (glm::length(finalRot) > 0.f) {
+				ubo.model = glm::rotate(
+						glm::identity<glm::mat4>(),
+						glm::length(finalRot),
+						glm::normalize(finalRot));
+			} else {
+				ubo.model = glm::mat4(1.f);
+			}
 		}
 
 		memcpy(
@@ -759,7 +813,7 @@ int main() {
 				pipelineLayout,
 				vertexBuffer,
 				indexBuffer,
-				descriptorSet
+				drawDescriptorSets
 		);
 		pbr::Frame::beginRenderPass(
 				commandBuffers[currentFrame],
