@@ -11,6 +11,7 @@
 #include <GLFW/glfw3.h>
 
 #include "Vertex.h"
+#include "Validation.h"
 #include "VkErrorHandling.h"
 
 namespace util {

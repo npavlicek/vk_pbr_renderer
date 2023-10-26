@@ -9,6 +9,13 @@ namespace util {
 		std::vector<const char *> enabledLayers{};
 		std::vector<const char *> enabledExtensions{};
 
+#ifdef ENABLE_VULKAN_VALIDATION_LAYERS
+		Validation::getValidationLayers(
+				context,
+				enabledLayers
+		);
+#endif
+
 		// Add GLFW necessary extensions
 		uint32_t glfwExtensionCount = 0;
 		const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -18,6 +25,20 @@ namespace util {
 			enabledExtensions.push_back(glfwExtensions[i]);
 		}
 
+		enabledExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+		vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
+		debugUtilsMessengerCreateInfo.setMessageSeverity(
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+		);
+		debugUtilsMessengerCreateInfo.setMessageType(
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+				vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+		);
+		debugUtilsMessengerCreateInfo.setPfnUserCallback(&VkResCheck::PFN_vkDebugUtilsMessengerCallbackEXT);
+
 		vk::ApplicationInfo applicationInfo(
 				applicationName,
 				1,
@@ -26,18 +47,22 @@ namespace util {
 				vk::ApiVersion13
 		);
 
-
-		vk::InstanceCreateInfo instanceCreateInfo;
+		vk::InstanceCreateInfo instanceCreateInfo{};
+		instanceCreateInfo.setPNext(&debugUtilsMessengerCreateInfo);
 		instanceCreateInfo.setPApplicationInfo(&applicationInfo);
 		instanceCreateInfo.setEnabledLayerCount(enabledLayers.size());
 		instanceCreateInfo.setPEnabledLayerNames(enabledLayers);
 		instanceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
 		instanceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
-		return {
+		vk::raii::Instance instance(
 				context,
 				instanceCreateInfo
-		};
+		);
+
+		auto debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfo);
+
+		return instance;
 	}
 
 	vk::raii::PhysicalDevice selectPhysicalDevice(

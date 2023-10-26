@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_PREFIX_PATH "lib/cmake")
 
+option(ENABLE_VALIDATION_LAYERS "Enable Vulkan validation layers")
+
+if (${ENABLE_VALIDATION_LAYERS})
+    add_compile_definitions(ENABLE_VULKAN_VALIDATION_LAYERS)
+endif ()
+
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 

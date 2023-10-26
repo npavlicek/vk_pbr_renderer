@@ -124,6 +124,8 @@ int main() {
 	VkResCheck res;
 
 	vk::raii::Context context;
+	std::cout << context.enumerateInstanceVersion() << std::endl;
+
 	auto instance = util::createInstance(
 			context,
 			"Vulkan PBR Renderer",
