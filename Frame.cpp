@@ -9,7 +9,7 @@ namespace pbr {
 			vk::raii::PipelineLayout &pipelineLayout,
 			vk::raii::Buffer &vertexBuffer,
 			vk::raii::Buffer &indexBuffer,
-			vk::raii::DescriptorSet &descriptorSet
+			std::vector<vk::DescriptorSet> &descriptorSets
 	) {
 		commandBuffer.reset();
 		commandBuffer.begin({});
@@ -28,14 +28,14 @@ namespace pbr {
 		commandBuffer.bindIndexBuffer(
 				*indexBuffer,
 				0,
-				vk::IndexType::eUint32
+				vk::IndexType::eUint16
 		);
 
 		commandBuffer.bindDescriptorSets(
 				vk::PipelineBindPoint::eGraphics,
 				*pipelineLayout,
 				0,
-				*descriptorSet,
+				descriptorSets,
 				nullptr
 		);
 	}
