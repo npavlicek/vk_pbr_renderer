@@ -18,7 +18,6 @@ namespace pbr {
 				vk::PipelineBindPoint::eGraphics,
 				*pipeline
 		);
-
 		commandBuffer.bindVertexBuffers(
 				0,
 				*vertexBuffer,
@@ -30,7 +29,6 @@ namespace pbr {
 				0,
 				vk::IndexType::eUint16
 		);
-
 		commandBuffer.bindDescriptorSets(
 				vk::PipelineBindPoint::eGraphics,
 				*pipelineLayout,

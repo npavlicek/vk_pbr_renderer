@@ -1,5 +1,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
+#define TINYOBJLOADER_USE_DOUBLE
 
 // KEEP VULKAN INCLUDED AT THE TOP OR THINGS WILL BREAK
 #include <vulkan/vulkan.hpp>
@@ -55,52 +56,37 @@ std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filen
 			config
 	);
 
-	const tinyobj::attrib_t &attrib = objReader.GetAttrib();
-	const std::vector<tinyobj::shape_t> &shapes = objReader.GetShapes();
+	const auto attrib = objReader.GetAttrib();
+	const auto shapes = objReader.GetShapes();
 	//const std::vector<tinyobj::material_t> &materials = objReader.GetMaterials();
 
 	std::srand(std::time(nullptr));
 
 	std::vector<Vertex> vertices{};
+	std::vector<uint16_t> indices{};
 
-	// MAKE SURE TO USE THE RIGHT INTEGER TYPE
-	// Using 16 bits restricts us to small indices
-	std::vector<uint16_t> indices;
+	for (int index = 0; index < static_cast<int>(shapes.at(0).mesh.indices.size()); index++) {
+		const auto &idx = shapes.at(0).mesh.indices.at(index);
 
-	for (int vertexIndex = 0; vertexIndex < static_cast<int>(attrib.vertices.size()); vertexIndex += 3) {
-		Vertex vertex{};
-		vertex.pos[0] = attrib.vertices[vertexIndex];
-		vertex.pos[1] = attrib.vertices[vertexIndex + 1];
-		vertex.pos[2] = attrib.vertices[vertexIndex + 2];
-		//float color = (static_cast<float>(std::rand()) / RAND_MAX) * 0.5f;
+		Vertex vertex;
+		vertex.pos[0] = attrib.vertices.at(3 * idx.vertex_index);
+		vertex.pos[1] = attrib.vertices.at(3 * idx.vertex_index + 1);
+		vertex.pos[2] = attrib.vertices.at(3 * idx.vertex_index + 2);
 		vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
 		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
 		vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.texCoords[0] = attrib.texcoords.at(2 * idx.texcoord_index);
+		// REMEMBER THE Y AXIS IS FLIPPED IN VULKAN
+		vertex.texCoords[1] = 1 - attrib.texcoords.at(2 * idx.texcoord_index + 1);
+
+		indices.push_back(index);
 		vertices.push_back(vertex);
 	}
 
-	int vertexIndex = 0;
-	for (int texIndex = 0; texIndex < static_cast<int>(attrib.texcoords.size()); texIndex += 2) {
-		vertices[vertexIndex].texCoords[0] = attrib.texcoords[texIndex];
-		vertices[vertexIndex].texCoords[1] = attrib.texcoords[texIndex + 1];
-		vertexIndex++;
-	}
-
-	try {
-		for (const auto &shape: shapes) {
-			for (const auto &index: shape.mesh.indices) {
-				indices.push_back(static_cast<uint16_t>(index.vertex_index));
-			}
-		}
-	} catch (const std::exception &err) {
-		std::cout << err.what() << std::endl;
-	}
-
-
-	return {
-			std::move(vertices),
-			std::move(indices)
-	};
+	return std::make_tuple(
+			vertices,
+			indices
+	);
 }
 
 int main() {
@@ -138,8 +124,6 @@ int main() {
 	VkResCheck res;
 
 	vk::raii::Context context;
-	std::cout << context.enumerateInstanceVersion() << std::endl;
-
 	auto instance = util::createInstance(
 			context,
 			"Vulkan PBR Renderer",
@@ -268,12 +252,20 @@ int main() {
 			surfaceCapabilities
 	);
 
-	std::vector<Vertex> vertices{};
-	std::vector<uint16_t> indices{};
+	std::vector<Vertex> vertices;
+	std::vector<uint16_t> indices;
+
+	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 	std::tie(
 			vertices,
 			indices
 	) = loadObj("models/monkey.obj");
+	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
+
+	auto elapsedTime = static_cast<std::chrono::duration<float, std::chrono::milliseconds::period >>(objLoadEndTime -
+	                                                                                                 objLoadStartTime);
+
+	std::cout << "Took " << elapsedTime << " milliseconds to load OBJ model" << std::endl;
 
 	// Create staging and vertex buffers and upload data
 	auto physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
@@ -513,11 +505,9 @@ int main() {
 			descriptorSets.begin(),
 			descriptorSets.end(),
 			[&drawDescriptorSets](vk::raii::DescriptorSet &descriptorSet) mutable {
-				std::cout << "descriptor set: " << *descriptorSet << std::endl;
 				drawDescriptorSets.push_back(*descriptorSet);
 			}
 	);
-	std::cout << "Descriptor set count " << drawDescriptorSets.size() << std::endl;
 
 	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
 
