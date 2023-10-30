@@ -1,14 +1,13 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#define TINYOBJLOADER_USE_DOUBLE
 
 // KEEP VULKAN INCLUDED AT THE TOP OR THINGS WILL BREAK
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
-#include <imgui/imgui.h>
-#include <imgui/backends/imgui_impl_glfw.h>
-#include <imgui/backends/imgui_impl_vulkan.h>
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_vulkan.h"
 
 #include <glm/ext.hpp>
 
@@ -26,46 +25,48 @@
 const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
 
-struct UniformBufferObject {
+struct UniformBufferObject
+{
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 projection;
 };
 
 void keyCallback(
-		GLFWwindow *window,
-		int key,
-		int scancode,
-		int action,
-		int mods
-) {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+	GLFWwindow *window,
+	int key,
+	int scancode,
+	int action,
+	int mods)
+{
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+	{
 		glfwSetWindowShouldClose(
-				window,
-				GLFW_TRUE
-		);
+			window,
+			GLFW_TRUE);
 	}
 }
 
-std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filename) {
+std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filename)
+{
 	tinyobj::ObjReaderConfig config{};
 	config.triangulate = true;
 	tinyobj::ObjReader objReader{};
 	objReader.ParseFromFile(
-			filename,
-			config
-	);
+		filename,
+		config);
 
 	const auto attrib = objReader.GetAttrib();
 	const auto shapes = objReader.GetShapes();
-	//const std::vector<tinyobj::material_t> &materials = objReader.GetMaterials();
+	// const std::vector<tinyobj::material_t> &materials = objReader.GetMaterials();
 
 	std::srand(std::time(nullptr));
 
 	std::vector<Vertex> vertices{};
 	std::vector<uint16_t> indices{};
 
-	for (int index = 0; index < static_cast<int>(shapes.at(0).mesh.indices.size()); index++) {
+	for (int index = 0; index < static_cast<int>(shapes.at(0).mesh.indices.size()); index++)
+	{
 		const auto &idx = shapes.at(0).mesh.indices.at(index);
 
 		Vertex vertex;
@@ -84,101 +85,87 @@ std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filen
 	}
 
 	return std::make_tuple(
-			vertices,
-			indices
-	);
+		vertices,
+		indices);
 }
 
-int main() {
+int main()
+{
 	if (!glfwInit())
 		throw std::runtime_error("Could not initialize GLFW");
 
 	glfwWindowHint(
-			GLFW_RESIZABLE,
-			GLFW_FALSE
-	);
+		GLFW_RESIZABLE,
+		GLFW_FALSE);
 	glfwWindowHint(
-			GLFW_CLIENT_API,
-			GLFW_NO_API
-	);
+		GLFW_CLIENT_API,
+		GLFW_NO_API);
 
 	GLFWwindow *window = glfwCreateWindow(
-			1600,
-			900,
-			"Testing Vulkan!",
-			nullptr,
-			nullptr
-	);
+		1600,
+		900,
+		"Testing Vulkan!",
+		nullptr,
+		nullptr);
 
-	if (!window) {
+	if (!window)
+	{
 		std::cerr << "Could not open primary window!" << std::endl;
 		glfwTerminate();
 		return -1;
 	}
 
 	glfwSetKeyCallback(
-			window,
-			keyCallback
-	);
+		window,
+		keyCallback);
 
 	VkResCheck res;
 
 	vk::raii::Context context;
 	auto instance = util::createInstance(
-			context,
-			"Vulkan PBR Renderer",
-			"Vulkan PBR Renderer"
-	);
+		context,
+		"Vulkan PBR Renderer",
+		"Vulkan PBR Renderer");
 	auto physicalDevice = util::selectPhysicalDevice(instance);
 	auto queueFamilyIndex = util::selectQueueFamily(physicalDevice);
 	auto device = util::createDevice(
-			physicalDevice,
-			queueFamilyIndex
-	);
+		physicalDevice,
+		queueFamilyIndex);
 	auto surface = util::createSurface(
-			instance,
-			window
-	);
+		instance,
+		window);
 	auto swapChainFormat = util::selectSwapChainFormat(
-			physicalDevice,
-			surface
-	);
+		physicalDevice,
+		surface);
 	auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
 
 	vk::raii::SwapchainKHR swapChain{nullptr};
 	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
 	std::tie(
-			swapChain,
-			swapChainCreateInfo
-	) = util::createSwapChain(
-			device,
-			physicalDevice,
-			surface,
-			swapChainFormat,
-			surfaceCapabilities
-	);
+		swapChain,
+		swapChainCreateInfo) = util::createSwapChain(device,
+													 physicalDevice,
+													 surface,
+													 swapChainFormat,
+													 surfaceCapabilities);
 
 	auto images = swapChain.getImages();
 	auto imageViews = util::createImageViews(
-			device,
-			images,
-			swapChainFormat.format,
-			vk::ImageAspectFlagBits::eColor
-	);
+		device,
+		images,
+		swapChainFormat.format,
+		vk::ImageAspectFlagBits::eColor);
 	auto commandPool = util::createCommandPool(
-			device,
-			queueFamilyIndex
-	);
+		device,
+		queueFamilyIndex);
 	auto commandBuffers = util::createCommandBuffers(
-			device,
-			commandPool,
-			MAX_FRAMES_IN_FLIGHT
-	);
+		device,
+		commandPool,
+		MAX_FRAMES_IN_FLIGHT);
 	auto shaderModules = util::createShaderModules(
-			device,
-			"shaders/vert.spv",
-			"shaders/frag.spv"
-	);
+		device,
+		"shaders/vert.spv",
+		"shaders/frag.spv");
 
 	// BEGIN DEPTH IMAGE
 
@@ -187,83 +174,69 @@ int main() {
 	vk::raii::DeviceMemory depthImageMemory{nullptr};
 	vk::raii::Image depthImage{nullptr};
 	std::tie(
-			depthImage,
-			depthImageMemory
-	) = util::createImage(
-			device,
-			physicalDevice,
-			vk::ImageTiling::eOptimal,
-			vk::ImageUsageFlagBits::eDepthStencilAttachment,
-			depthImageFormat,
-			{
-					surfaceCapabilities.currentExtent.width,
-					surfaceCapabilities.currentExtent.height,
-					1
-			},
-			vk::ImageType::e2D,
-			vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
+		depthImage,
+		depthImageMemory) = util::createImage(device,
+											  physicalDevice,
+											  vk::ImageTiling::eOptimal,
+											  vk::ImageUsageFlagBits::eDepthStencilAttachment,
+											  depthImageFormat,
+											  {surfaceCapabilities.currentExtent.width,
+											   surfaceCapabilities.currentExtent.height,
+											   1},
+											  vk::ImageType::e2D,
+											  vk::MemoryPropertyFlagBits::eDeviceLocal);
 
 	std::vector<vk::Image> depthImages{*depthImage};
 
 	vk::raii::ImageView depthImageView = std::move(
-			util::createImageViews(
-					device,
-					depthImages,
-					depthImageFormat,
-					vk::ImageAspectFlagBits::eDepth
-			)[0]
-	);
+		util::createImageViews(
+			device,
+			depthImages,
+			depthImageFormat,
+			vk::ImageAspectFlagBits::eDepth)[0]);
 
 	depthImages.clear();
 
 	// END DEPTH IMAGE
 
 	auto renderPass = util::createRenderPass(
-			device,
-			swapChainFormat,
-			depthImageFormat
-	);
+		device,
+		swapChainFormat,
+		depthImageFormat);
 
 	vk::raii::Pipeline pipeline{nullptr};
 	vk::raii::PipelineLayout pipelineLayout{nullptr};
 	vk::raii::PipelineCache pipelineCache{nullptr};
 	vk::raii::DescriptorSetLayout descriptorSetLayout{nullptr};
 	std::tie(
-			pipeline,
-			pipelineLayout,
-			pipelineCache,
-			descriptorSetLayout
-	) = util::createPipeline(
-			device,
-			renderPass,
-			shaderModules
-	);
+		pipeline,
+		pipelineLayout,
+		pipelineCache,
+		descriptorSetLayout) = util::createPipeline(device,
+													renderPass,
+													shaderModules);
 	auto queue = device.getQueue(
-			queueFamilyIndex,
-			0
-	);
+		queueFamilyIndex,
+		0);
 
 	auto frameBuffers = util::createFrameBuffers(
-			device,
-			renderPass,
-			imageViews,
-			depthImageView,
-			surfaceCapabilities
-	);
+		device,
+		renderPass,
+		imageViews,
+		depthImageView,
+		surfaceCapabilities);
 
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 	std::tie(
-			vertices,
-			indices
-	) = loadObj("models/monkey.obj");
+		vertices,
+		indices) = loadObj("models/monkey.obj");
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
-	auto elapsedTime = static_cast<std::chrono::duration<float, std::chrono::milliseconds::period >>(objLoadEndTime -
-	                                                                                                 objLoadStartTime);
+	auto elapsedTime = static_cast<std::chrono::duration<float, std::chrono::milliseconds::period>>(objLoadEndTime -
+																									objLoadStartTime);
 
 	std::cout << "Took " << elapsedTime << " milliseconds to load OBJ model" << std::endl;
 
@@ -274,34 +247,27 @@ int main() {
 	vk::raii::Buffer stagingBuffer{nullptr};
 	vk::raii::DeviceMemory stagingBufferMemory{nullptr};
 	std::tie(
-			stagingBuffer,
-			stagingBufferMemory
-	) = util::createBuffer(
-			device,
-			physicalDeviceMemoryProperties,
-			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-			vertexBufferSize,
-			vk::BufferUsageFlagBits::eTransferSrc
-	);
+		stagingBuffer,
+		stagingBufferMemory) = util::createBuffer(device,
+												  physicalDeviceMemoryProperties,
+												  vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+												  vertexBufferSize,
+												  vk::BufferUsageFlagBits::eTransferSrc);
 
 	vk::raii::Buffer vertexBuffer{nullptr};
 	vk::raii::DeviceMemory vertexBufferMemory{nullptr};
 	std::tie(
-			vertexBuffer,
-			vertexBufferMemory
-	) = util::createBuffer(
-			device,
-			physicalDeviceMemoryProperties,
-			vk::MemoryPropertyFlagBits::eDeviceLocal,
-			vertexBufferSize,
-			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer
-	);
+		vertexBuffer,
+		vertexBufferMemory) = util::createBuffer(device,
+												 physicalDeviceMemoryProperties,
+												 vk::MemoryPropertyFlagBits::eDeviceLocal,
+												 vertexBufferSize,
+												 vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer);
 
 	util::uploadVertexData(
-			device,
-			stagingBufferMemory,
-			vertices
-	);
+		device,
+		stagingBufferMemory,
+		vertices);
 	//
 
 	// Create index buffers and staging buffers and upload index data
@@ -310,34 +276,27 @@ int main() {
 	vk::raii::Buffer indexBufferStaging{nullptr};
 	vk::raii::DeviceMemory indexBufferStagingMemory{nullptr};
 	std::tie(
-			indexBufferStaging,
-			indexBufferStagingMemory
-	) = util::createBuffer(
-			device,
-			physicalDeviceMemoryProperties,
-			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-			indexBufferSize,
-			vk::BufferUsageFlagBits::eTransferSrc
-	);
+		indexBufferStaging,
+		indexBufferStagingMemory) = util::createBuffer(device,
+													   physicalDeviceMemoryProperties,
+													   vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+													   indexBufferSize,
+													   vk::BufferUsageFlagBits::eTransferSrc);
 
 	vk::raii::Buffer indexBuffer{nullptr};
 	vk::raii::DeviceMemory indexBufferMemory{nullptr};
 	std::tie(
-			indexBuffer,
-			indexBufferMemory
-	) = util::createBuffer(
-			device,
-			physicalDeviceMemoryProperties,
-			vk::MemoryPropertyFlagBits::eDeviceLocal,
-			indexBufferSize,
-			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer
-	);
+		indexBuffer,
+		indexBufferMemory) = util::createBuffer(device,
+												physicalDeviceMemoryProperties,
+												vk::MemoryPropertyFlagBits::eDeviceLocal,
+												indexBufferSize,
+												vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
 
 	util::uploadIndexData(
-			device,
-			indexBufferStagingMemory,
-			indices
-	);
+		device,
+		indexBufferStagingMemory,
+		indices);
 	//
 
 	// Copy staging buffer data to vertex buffer
@@ -347,11 +306,9 @@ int main() {
 		commandBufferAllocateInfo.setCommandPool(*commandPool);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 		auto commandBuffer = std::move(
-				vk::raii::CommandBuffers{
-						device,
-						commandBufferAllocateInfo
-				}[0]
-		);
+			vk::raii::CommandBuffers{
+				device,
+				commandBufferAllocateInfo}[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -360,10 +317,9 @@ int main() {
 		vk::BufferCopy bufferCopy;
 		bufferCopy.setSize(vertexBufferSize);
 		commandBuffer.copyBuffer(
-				*stagingBuffer,
-				*vertexBuffer,
-				bufferCopy
-		);
+			*stagingBuffer,
+			*vertexBuffer,
+			bufferCopy);
 
 		commandBuffer.end();
 
@@ -384,11 +340,9 @@ int main() {
 		commandBufferAllocateInfo.setCommandPool(*commandPool);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 		auto commandBuffer = std::move(
-				vk::raii::CommandBuffers{
-						device,
-						commandBufferAllocateInfo
-				}[0]
-		);
+			vk::raii::CommandBuffers{
+				device,
+				commandBufferAllocateInfo}[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -397,10 +351,9 @@ int main() {
 		vk::BufferCopy bufferCopy;
 		bufferCopy.setSize(indexBufferSize);
 		commandBuffer.copyBuffer(
-				*indexBufferStaging,
-				*indexBuffer,
-				bufferCopy
-		);
+			*indexBufferStaging,
+			*indexBuffer,
+			bufferCopy);
 
 		commandBuffer.end();
 
@@ -419,58 +372,53 @@ int main() {
 	void *uniformBufferMemPtrs[MAX_FRAMES_IN_FLIGHT];
 	std::vector<vk::raii::Buffer> uniformBuffers;
 	std::vector<vk::raii::DeviceMemory> uniformBufferMemory;
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
 		auto uniformBuffer = util::createBuffer(
-				device,
-				physicalDeviceMemoryProperties,
-				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-				sizeof(UniformBufferObject),
-				vk::BufferUsageFlagBits::eUniformBuffer
-		);
+			device,
+			physicalDeviceMemoryProperties,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+			sizeof(UniformBufferObject),
+			vk::BufferUsageFlagBits::eUniformBuffer);
 		uniformBuffers.push_back(std::move(std::get<vk::raii::Buffer>(uniformBuffer)));
 		uniformBufferMemory.push_back(std::move(std::get<vk::raii::DeviceMemory>(uniformBuffer)));
 
 		vkMapMemory(
-				*device,
-				*uniformBufferMemory[i],
-				0,
-				sizeof(UniformBufferObject),
-				0,
-				&uniformBufferMemPtrs[i]
-		);
+			*device,
+			*uniformBufferMemory[i],
+			0,
+			sizeof(UniformBufferObject),
+			0,
+			&uniformBufferMemPtrs[i]);
 	}
 
 	UniformBufferObject ubo{};
 	ubo.projection = glm::perspective(
-			glm::radians(45.f),
-			1600.f / 900.f,
-			0.1f,
-			2000.f
-	);
+		glm::radians(45.f),
+		1600.f / 900.f,
+		0.1f,
+		2000.f);
 	ubo.view = glm::lookAt(
-			glm::vec3{
-					5.f,
-					5.f,
-					5.f
-			},
-			glm::vec3{
-					0.f,
-					0.f,
-					0.f
-			},
-			glm::vec3{
-					0.f,
-					0.f,
-					1.f
-			}
-	);
+		glm::vec3{
+			0.f,
+			0.f,
+			5.f},
+		glm::vec3{
+			0.f,
+			0.f,
+			0.f},
+		glm::vec3{
+			0.f,
+			-1.f,
+			0.f});
 	ubo.model = glm::identity<glm::mat4>();
 
-	for (const auto &uniformBufferMemPtr: uniformBufferMemPtrs) {
+	for (const auto &uniformBufferMemPtr : uniformBufferMemPtrs)
+	{
 		memcpy(
-				uniformBufferMemPtr,
-				&ubo,
-				sizeof(ubo));
+			uniformBufferMemPtr,
+			&ubo,
+			sizeof(ubo));
 	}
 
 	// END UNIFORM BUFFERS
@@ -478,40 +426,38 @@ int main() {
 	// BEGIN TEXTURES
 
 	Texture texture(
-			device,
-			physicalDevice,
-			commandBuffers[0],
-			queue,
-			"res/monkey.png"
-	);
+		device,
+		physicalDevice,
+		commandBuffers[0],
+		queue,
+		"res/monkey.png");
 
 	// END TEXTURES
 
 	// DESCRIPTOR SETS
 
 	auto descriptorPool = util::createDescriptorPool(
-			device
-	);
+		device);
 
 	auto descriptorSets = util::createDescriptorSets(
-			device,
-			descriptorPool,
-			descriptorSetLayout,
-			1
-	);
+		device,
+		descriptorPool,
+		descriptorSetLayout,
+		1);
 
 	std::vector<vk::DescriptorSet> drawDescriptorSets;
 	std::for_each(
-			descriptorSets.begin(),
-			descriptorSets.end(),
-			[&drawDescriptorSets](vk::raii::DescriptorSet &descriptorSet) mutable {
-				drawDescriptorSets.push_back(*descriptorSet);
-			}
-	);
+		descriptorSets.begin(),
+		descriptorSets.end(),
+		[&drawDescriptorSets](vk::raii::DescriptorSet &descriptorSet) mutable
+		{
+			drawDescriptorSets.push_back(*descriptorSet);
+		});
 
 	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
 
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
 		vk::DescriptorBufferInfo descriptorBufferInfo{};
 		descriptorBufferInfo.setOffset(0);
 		descriptorBufferInfo.setBuffer(*uniformBuffers[i]);
@@ -538,9 +484,8 @@ int main() {
 	writeDescriptorSets[2].setImageInfo(imageDescriptorInfo);
 
 	device.updateDescriptorSets(
-			writeDescriptorSets,
-			nullptr
-	);
+		writeDescriptorSets,
+		nullptr);
 
 	// END DESCRIPTOR SETS
 
@@ -548,42 +493,37 @@ int main() {
 
 	auto imguiContext = ImGui::CreateContext();
 	ImGui_ImplGlfw_InitForVulkan(
-			window,
-			true
-	);
+		window,
+		true);
 
 	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{
-			*instance,
-			*physicalDevice,
-			*device,
-			static_cast<uint32_t>(queueFamilyIndex),
-			*queue,
-			*pipelineCache,
-			*descriptorPool,
-			0,
-			surfaceCapabilities.minImageCount,
-			surfaceCapabilities.minImageCount,
-			static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
-			false,
-			static_cast<VkFormat>(swapChainFormat.format),
-			nullptr,
-			nullptr
-	};
+		*instance,
+		*physicalDevice,
+		*device,
+		static_cast<uint32_t>(queueFamilyIndex),
+		*queue,
+		*pipelineCache,
+		*descriptorPool,
+		0,
+		surfaceCapabilities.minImageCount,
+		surfaceCapabilities.minImageCount,
+		static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
+		false,
+		static_cast<VkFormat>(swapChainFormat.format),
+		nullptr,
+		nullptr};
 
 	ImGui_ImplVulkan_Init(
-			&imGuiImplVulkanInitInfo,
-			*renderPass
-	);
+		&imGuiImplVulkanInitInfo,
+		*renderPass);
 
 	// UPLOAD IMGUI FONTS
 	{
 		vk::raii::CommandBuffer commandBuffer = std::move(
-				util::createCommandBuffers(
-						device,
-						commandPool,
-						1
-				)[0]
-		);
+			util::createCommandBuffers(
+				device,
+				commandPool,
+				1)[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -604,56 +544,54 @@ int main() {
 
 	// END IMGUI
 
-	// BEGIN SYNCHRONIZATION 
+	// BEGIN SYNCHRONIZATION
 
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
 	renderFinishedSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
 		imageAvailableSemaphores.push_back(device.createSemaphore({}));
 		renderFinishedSemaphores.push_back(device.createSemaphore({}));
 	}
 
 	std::vector<vk::raii::Fence> inFlightFences;
 	inFlightFences.reserve(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
 		inFlightFences.push_back(device.createFence({vk::FenceCreateFlagBits::eSignaled}));
 	}
 
 	// END SYNCHRONIZATION
 
 	vk::ClearColorValue clearColorValue{
-			0.f,
-			0.f,
-			0.f,
-			1.f
-	};
+		0.f,
+		0.f,
+		0.f,
+		1.f};
 	vk::ClearDepthStencilValue clearDepthValue{
-			1.f,
-			0
-	};
+		1.f,
+		0};
 	std::vector<vk::ClearValue> clearValues{
-			clearColorValue,
-			clearDepthValue
-	};
+		clearColorValue,
+		clearDepthValue};
 	vk::Rect2D renderArea{
-			{
-					0,
-					0
-			},
-			surfaceCapabilities.currentExtent
-	};
+		{0,
+		 0},
+		surfaceCapabilities.currentExtent};
 
-	struct ModelSettings {
-		struct {
+	struct ModelSettings
+	{
+		struct
+		{
 			float x, y, z;
 		} pos{
-				0.f,
-				5.f,
-				2.f
-		};
-		struct {
+			0.f,
+			5.f,
+			2.f};
+		struct
+		{
 			float x, y, z;
 		} rotation{};
 	} modelSettings{};
@@ -662,7 +600,8 @@ int main() {
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
-	while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window))
+	{
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
 		lastTime = currentTime;
@@ -670,10 +609,9 @@ int main() {
 		glfwPollEvents();
 
 		res = device.waitForFences(
-				*inFlightFences[currentFrame],
-				VK_TRUE,
-				UINT32_MAX
-		);
+			*inFlightFences[currentFrame],
+			VK_TRUE,
+			UINT32_MAX);
 		device.resetFences(*inFlightFences[currentFrame]);
 
 		// IMGUI NEW FRAME
@@ -684,49 +622,40 @@ int main() {
 		ImGui::Begin("Settings");
 		ImGui::Text("Model Rotation");
 		ImGui::SliderFloat(
-				"World X",
-				&modelSettings.rotation.x,
-				-360.f,
-				360.f
-		);
+			"World X",
+			&modelSettings.rotation.x,
+			-360.f,
+			360.f);
 		ImGui::SliderFloat(
-				"World Y",
-				&modelSettings.rotation.y,
-				-360.f,
-				360.f
-		);
+			"World Y",
+			&modelSettings.rotation.y,
+			-360.f,
+			360.f);
 		ImGui::SliderFloat(
-				"World Z",
-				&modelSettings.rotation.z,
-				-360.f,
-				360.f
-		);
+			"World Z",
+			&modelSettings.rotation.z,
+			-360.f,
+			360.f);
 		ImGui::Text("Camera Position");
 		ImGui::SliderFloat(
-				"Camera X",
-				&modelSettings.pos.x,
-				-1000.f,
-				1000.f
-		);
+			"Camera X",
+			&modelSettings.pos.x,
+			-50.f,
+			50.f);
 		ImGui::SliderFloat(
-				"Camera Y",
-				&modelSettings.pos.y,
-				-1000.f,
-				1000.f
-		);
+			"Camera Y",
+			&modelSettings.pos.y,
+			-50.f,
+			50.f);
 		ImGui::SliderFloat(
-				"Camera Z",
-				&modelSettings.pos.z,
-				-1000.f,
-				1000.f
-		);
+			"Camera Z",
+			&modelSettings.pos.z,
+			-50.f,
+			50.f);
 		bool resetPressed = ImGui::Button(
-				"Reset",
-				{
-						100.f,
-						25.f
-				}
-		);
+			"Reset",
+			{100.f,
+			 25.f});
 		ImGui::End();
 
 		// IMGUI END NEW FRAME
@@ -734,89 +663,87 @@ int main() {
 		// Update model matrix
 
 		ubo.view = glm::lookAt(
-				{
-						modelSettings.pos.x,
-						modelSettings.pos.y,
-						modelSettings.pos.z
-				},
-				glm::vec3{},
-				{
-						0,
-						0,
-						1.f
-				}
-		);
+			{modelSettings.pos.x,
+			 modelSettings.pos.y,
+			 modelSettings.pos.z},
+			glm::vec3{},
+			{0,
+			 -1.f,
+			 0});
 
-		if (resetPressed) {
+		if (resetPressed)
+		{
 			ubo.model = glm::identity<glm::mat4>();
 			modelSettings.rotation.x = 0;
 			modelSettings.rotation.y = 0;
 			modelSettings.rotation.z = 0;
-		} else {
+		}
+		else
+		{
 			glm::vec3 xRot = glm::vec3(
-					1.f,
-					0.f,
-					0.f
-			) * glm::radians(modelSettings.rotation.x);
+								 1.f,
+								 0.f,
+								 0.f) *
+							 glm::radians(modelSettings.rotation.x);
 			glm::vec3 yRot = glm::vec3(
-					0.f,
-					1.f,
-					0.f
-			) * glm::radians(modelSettings.rotation.y);
+								 0.f,
+								 1.f,
+								 0.f) *
+							 glm::radians(modelSettings.rotation.y);
 			glm::vec3 zRot = glm::vec3(
-					0.f,
-					0.f,
-					1.f
-			) * glm::radians(modelSettings.rotation.z);
+								 0.f,
+								 0.f,
+								 1.f) *
+							 glm::radians(modelSettings.rotation.z);
 			glm::vec3 finalRot = xRot + yRot + zRot;
-			if (glm::length(finalRot) > 0.f) {
+			if (glm::length(finalRot) > 0.f)
+			{
 				ubo.model = glm::rotate(
-						glm::identity<glm::mat4>(),
-						glm::length(finalRot),
-						glm::normalize(finalRot));
-			} else {
+					glm::identity<glm::mat4>(),
+					glm::length(finalRot),
+					glm::normalize(finalRot));
+			}
+			else
+			{
 				ubo.model = glm::mat4(1.f);
 			}
 		}
 
+		//		ubo.view = glm::mat4(1.f);
+		//		ubo.projection = glm::mat4(1.f);
+		//		ubo.model = glm::mat4(1.f);
+
 		memcpy(
-				uniformBufferMemPtrs[currentFrame],
-				&ubo,
-				sizeof(ubo)
-		);
+			uniformBufferMemPtrs[currentFrame],
+			&ubo,
+			sizeof(ubo));
 
 		// end update model matrix
 
 		uint32_t imageIndex;
 		std::tie(
-				res,
-				imageIndex
-		) = swapChain.acquireNextImage(
-				UINT64_MAX,
-				*imageAvailableSemaphores[currentFrame],
-				VK_NULL_HANDLE
-		);
+			res,
+			imageIndex) = swapChain.acquireNextImage(UINT64_MAX,
+													 *imageAvailableSemaphores[currentFrame],
+													 VK_NULL_HANDLE);
 
 		pbr::Frame::begin(
-				commandBuffers[currentFrame],
-				pipeline,
-				pipelineLayout,
-				vertexBuffer,
-				indexBuffer,
-				drawDescriptorSets
-		);
+			commandBuffers[currentFrame],
+			pipeline,
+			pipelineLayout,
+			vertexBuffer,
+			indexBuffer,
+			drawDescriptorSets);
 		pbr::Frame::beginRenderPass(
-				commandBuffers[currentFrame],
-				renderPass,
-				frameBuffers[imageIndex],
-				clearValues,
-				renderArea
-		);
+			commandBuffers[currentFrame],
+			renderPass,
+			frameBuffers[imageIndex],
+			clearValues,
+			renderArea);
 		pbr::Frame::draw(
-				commandBuffers[currentFrame],
-				renderArea,
-				static_cast<int>(indices.size())
-		);
+			commandBuffers[currentFrame],
+			renderArea,
+			static_cast<int>(indices.size()));
 		pbr::Frame::endRenderPass(commandBuffers[currentFrame]);
 		pbr::Frame::end(commandBuffers[currentFrame]);
 
@@ -832,9 +759,8 @@ int main() {
 		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
 
 		queue.submit(
-				submitInfo,
-				*inFlightFences[currentFrame]
-		);
+			submitInfo,
+			*inFlightFences[currentFrame]);
 
 		vk::PresentInfoKHR presentInfo;
 		presentInfo.setSwapchainCount(1);

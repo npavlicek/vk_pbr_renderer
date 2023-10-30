@@ -1,5 +1,5 @@
 lib
 include
-cmake-build-*
+build
 **.spv
 imgui.ini

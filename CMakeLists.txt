@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.25)
 project(vk_pbr_renderer)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -15,17 +15,17 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
 include_directories(
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/imgui
-        ${PROJECT_SOURCE_DIR}/imgui/backends
+		${PROJECT_SOURCE_DIR}
+		${PROJECT_SOURCE_DIR}/imgui
+		${PROJECT_SOURCE_DIR}/include
+		${PROJECT_SOURCE_DIR}/src/include
 )
 
 file(GLOB proj_srcs
-        "${PROJECT_SOURCE_DIR}/*.cpp"
-        "${PROJECT_SOURCE_DIR}/imgui/*.cpp"
-        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_glfw.cpp"
-        "${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_vulkan.cpp"
+		"${PROJECT_SOURCE_DIR}/src/*.cpp"
+		"${PROJECT_SOURCE_DIR}/imgui/*.cpp"
+		"${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_glfw.cpp"
+		"${PROJECT_SOURCE_DIR}/imgui/backends/imgui_impl_vulkan.cpp"
 )
 
 add_executable(vk_pbr_renderer ${proj_srcs})

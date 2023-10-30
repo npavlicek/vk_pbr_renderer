@@ -117,7 +117,7 @@ void Texture::createSampler(
 	samplerCreateInfo.setAddressModeU(vk::SamplerAddressMode::eRepeat);
 	samplerCreateInfo.setAddressModeV(vk::SamplerAddressMode::eRepeat);
 	samplerCreateInfo.setAddressModeW(vk::SamplerAddressMode::eRepeat);
-	samplerCreateInfo.setAnisotropyEnable(vk::False);
+	samplerCreateInfo.setAnisotropyEnable(vk::True);
 	samplerCreateInfo.setMaxAnisotropy(maxAnisotropy);
 	samplerCreateInfo.setBorderColor(vk::BorderColor::eFloatOpaqueWhite);
 	samplerCreateInfo.setUnnormalizedCoordinates(vk::False);
