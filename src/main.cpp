@@ -442,41 +442,6 @@ int main()
 
 	// END DESCRIPTOR SETS
 
-	// BEGIN IMAGE MEMORY BARRIER
-
-	vk::ImageMemoryBarrier imageMemoryBarrier;
-	imageMemoryBarrier.setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
-	imageMemoryBarrier.setDstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
-	imageMemoryBarrier.setOldLayout(vk::ImageLayout::eUndefined);
-	imageMemoryBarrier.setNewLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
-	imageMemoryBarrier.setSubresourceRange(
-		vk::ImageSubresourceRange{
-			vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-			0,
-			1,
-			0,
-			1});
-	imageMemoryBarrier.setSrcAccessMask(vk::AccessFlagBits::eNone);
-	imageMemoryBarrier.setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite);
-
-	CommandBuffer::beginSTC(vulkanManager.getVulkanState().commandBuffers.get()->at(0));
-
-	for (int i = 0; i < depthImages.size(); i++)
-	{
-		imageMemoryBarrier.setImage(*depthImages[i]);
-		vulkanManager.getVulkanState().commandBuffers.get()->at(0).pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe,
-			vk::PipelineStageFlagBits::eEarlyFragmentTests,
-			vk::DependencyFlagBits::eByRegion,
-			nullptr,
-			nullptr,
-			imageMemoryBarrier);
-	}
-
-	CommandBuffer::endSTC(vulkanManager.getVulkanState().commandBuffers.get()->at(0), queue);
-
-	// END IMAGE MEMORY BARRIER
-
 	// BEGIN IMGUI
 
 	auto imguiContext = ImGui::CreateContext();
@@ -588,16 +553,11 @@ int main()
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
-	int frames = 0;
-
 	while (!glfwWindowShouldClose(window))
 	{
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
 		lastTime = currentTime;
-
-		std::cout << frames << std::endl;
-		frames++;
 
 		glfwPollEvents();
 

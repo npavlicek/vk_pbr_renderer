@@ -230,7 +230,7 @@ namespace util
 	vk::Format selectDepthFormat(vk::raii::PhysicalDevice &physicalDevice)
 	{
 		std::vector<vk::Format> depthFormats{
-			//vk::Format::eD32Sfloat,
+			// vk::Format::eD32Sfloat,
 			vk::Format::eD32SfloatS8Uint,
 			vk::Format::eD24UnormS8Uint};
 
@@ -600,10 +600,10 @@ namespace util
 		subpassDependency.setSrcSubpass(vk::SubpassExternal);
 		subpassDependency.setDstSubpass(0);
 		subpassDependency.setSrcStageMask(
-			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests);
-		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eNone);
+			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eLateFragmentTests);
 		subpassDependency.setDstStageMask(
 			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests);
+		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite);
 		subpassDependency.setDstAccessMask(
 			vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite);
 
