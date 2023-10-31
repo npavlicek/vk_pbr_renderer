@@ -21,8 +21,8 @@
 #include "Frame.h"
 #include "VkErrorHandling.h"
 #include "Texture.h"
+#include "VulkanManager.h"
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
 int currentFrame = 0;
 
 struct UniformBufferObject
@@ -94,12 +94,8 @@ int main()
 	if (!glfwInit())
 		throw std::runtime_error("Could not initialize GLFW");
 
-	glfwWindowHint(
-		GLFW_RESIZABLE,
-		GLFW_FALSE);
-	glfwWindowHint(
-		GLFW_CLIENT_API,
-		GLFW_NO_API);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	GLFWwindow *window = glfwCreateWindow(
 		1600,
@@ -121,87 +117,44 @@ int main()
 
 	VkResCheck res;
 
-	vk::raii::Context context;
-	auto instance = util::createInstance(
-		context,
-		"Vulkan PBR Renderer",
-		"Vulkan PBR Renderer");
-	auto physicalDevice = util::selectPhysicalDevice(instance);
-	auto queueFamilyIndex = util::selectQueueFamily(physicalDevice);
-	auto device = util::createDevice(
-		physicalDevice,
-		queueFamilyIndex);
-	auto surface = util::createSurface(
-		instance,
-		window);
-	auto swapChainFormat = util::selectSwapChainFormat(
-		physicalDevice,
-		surface);
-	auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-
-	vk::raii::SwapchainKHR swapChain{nullptr};
-	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
-	std::tie(
-		swapChain,
-		swapChainCreateInfo) = util::createSwapChain(device,
-													 physicalDevice,
-													 surface,
-													 swapChainFormat,
-													 surfaceCapabilities);
-
-	auto images = swapChain.getImages();
-	auto imageViews = util::createImageViews(
-		device,
-		images,
-		swapChainFormat.format,
-		vk::ImageAspectFlagBits::eColor);
-	auto commandPool = util::createCommandPool(
-		device,
-		queueFamilyIndex);
-	auto commandBuffers = util::createCommandBuffers(
-		device,
-		commandPool,
-		MAX_FRAMES_IN_FLIGHT);
-	auto shaderModules = util::createShaderModules(
-		device,
-		"shaders/vert.spv",
-		"shaders/frag.spv");
+	VulkanManager vulkanManager(window, 2);
 
 	// BEGIN DEPTH IMAGE
 
-	vk::Format depthImageFormat = util::selectDepthFormat(physicalDevice);
+	vk::Format depthImageFormat = util::selectDepthFormat(*vulkanManager.getVulkanState().physicalDevice.get());
 
-	vk::raii::DeviceMemory depthImageMemory{nullptr};
-	vk::raii::Image depthImage{nullptr};
-	std::tie(
-		depthImage,
-		depthImageMemory) = util::createImage(device,
-											  physicalDevice,
-											  vk::ImageTiling::eOptimal,
-											  vk::ImageUsageFlagBits::eDepthStencilAttachment,
-											  depthImageFormat,
-											  {surfaceCapabilities.currentExtent.width,
-											   surfaceCapabilities.currentExtent.height,
-											   1},
-											  vk::ImageType::e2D,
-											  vk::MemoryPropertyFlagBits::eDeviceLocal);
+	auto surfaceCapabilities = vulkanManager.getVulkanState().surfaceCapabilities;
 
-	std::vector<vk::Image> depthImages{*depthImage};
+	std::vector<vk::raii::DeviceMemory> depthImageMemorys;
+	std::vector<vk::raii::Image> depthImages;
+	std::vector<vk::Image> depthImagesTemp;
 
-	vk::raii::ImageView depthImageView = std::move(
-		util::createImageViews(
-			device,
-			depthImages,
-			depthImageFormat,
-			vk::ImageAspectFlagBits::eDepth)[0]);
+	// TODO: MODIFY THE RANGE OF THIS LOOP TO MATCH HOWEVER MANY IMAGES WE GET ON THE SWAPCHAIN
+	for (int i = 0; i < 3; i++)
+	{
+		vk::raii::DeviceMemory depthImageMemory{nullptr};
+		vk::raii::Image depthImage{nullptr};
+		std::tie(
+			depthImage,
+			depthImageMemory) = util::createImage(*vulkanManager.getVulkanState().device.get(), *vulkanManager.getVulkanState().physicalDevice.get(), vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, depthImageFormat, {surfaceCapabilities.currentExtent.width, surfaceCapabilities.currentExtent.height, 1}, vk::ImageType::e2D, vk::MemoryPropertyFlagBits::eDeviceLocal);
+		depthImageMemorys.push_back(std::move(depthImageMemory));
+		depthImagesTemp.push_back(*depthImage);
+		depthImages.push_back(std::move(depthImage));
+	}
 
-	depthImages.clear();
+	std::vector<vk::raii::ImageView> depthImageViews = util::createImageViews(
+		*vulkanManager.getVulkanState().device.get(),
+		depthImagesTemp,
+		depthImageFormat,
+		vk::ImageAspectFlagBits::eDepth);
+
+	depthImagesTemp.clear();
 
 	// END DEPTH IMAGE
 
 	auto renderPass = util::createRenderPass(
-		device,
-		swapChainFormat,
+		*vulkanManager.getVulkanState().device.get(),
+		vulkanManager.getVulkanState().swapChainFormat,
 		depthImageFormat);
 
 	vk::raii::Pipeline pipeline{nullptr};
@@ -212,19 +165,19 @@ int main()
 		pipeline,
 		pipelineLayout,
 		pipelineCache,
-		descriptorSetLayout) = util::createPipeline(device,
-													renderPass,
-													shaderModules);
-	auto queue = device.getQueue(
-		queueFamilyIndex,
+		descriptorSetLayout) = util::createPipeline(*vulkanManager.getVulkanState().device.get(), renderPass, *vulkanManager.getVulkanState().shaderModules.get());
+	auto queue = vulkanManager.getVulkanState().device.get()->getQueue(
+		vulkanManager.getVulkanState().queueFamilyGraphicsIndex,
 		0);
 
+	std::cout << "NUMBER OF IMAGES: " << vulkanManager.getVulkanState().swapChainImageViews.get()->size() << std::endl;
+
 	auto frameBuffers = util::createFrameBuffers(
-		device,
+		*vulkanManager.getVulkanState().device.get(),
 		renderPass,
-		imageViews,
-		depthImageView,
-		surfaceCapabilities);
+		*vulkanManager.getVulkanState().swapChainImageViews.get(),
+		depthImageViews,
+		vulkanManager.getVulkanState().surfaceCapabilities);
 
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
@@ -241,14 +194,14 @@ int main()
 	std::cout << "Took " << elapsedTime << " milliseconds to load OBJ model" << std::endl;
 
 	// Create staging and vertex buffers and upload data
-	auto physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
+	auto physicalDeviceMemoryProperties = vulkanManager.getVulkanState().physicalDevice.get()->getMemoryProperties();
 	const auto vertexBufferSize = sizeof(vertices[0]) * vertices.size();
 
 	vk::raii::Buffer stagingBuffer{nullptr};
 	vk::raii::DeviceMemory stagingBufferMemory{nullptr};
 	std::tie(
 		stagingBuffer,
-		stagingBufferMemory) = util::createBuffer(device,
+		stagingBufferMemory) = util::createBuffer(*vulkanManager.getVulkanState().device.get(),
 												  physicalDeviceMemoryProperties,
 												  vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 												  vertexBufferSize,
@@ -258,14 +211,14 @@ int main()
 	vk::raii::DeviceMemory vertexBufferMemory{nullptr};
 	std::tie(
 		vertexBuffer,
-		vertexBufferMemory) = util::createBuffer(device,
+		vertexBufferMemory) = util::createBuffer(*vulkanManager.getVulkanState().device.get(),
 												 physicalDeviceMemoryProperties,
 												 vk::MemoryPropertyFlagBits::eDeviceLocal,
 												 vertexBufferSize,
 												 vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer);
 
 	util::uploadVertexData(
-		device,
+		*vulkanManager.getVulkanState().device.get(),
 		stagingBufferMemory,
 		vertices);
 	//
@@ -277,7 +230,7 @@ int main()
 	vk::raii::DeviceMemory indexBufferStagingMemory{nullptr};
 	std::tie(
 		indexBufferStaging,
-		indexBufferStagingMemory) = util::createBuffer(device,
+		indexBufferStagingMemory) = util::createBuffer(*vulkanManager.getVulkanState().device.get(),
 													   physicalDeviceMemoryProperties,
 													   vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 													   indexBufferSize,
@@ -287,14 +240,14 @@ int main()
 	vk::raii::DeviceMemory indexBufferMemory{nullptr};
 	std::tie(
 		indexBuffer,
-		indexBufferMemory) = util::createBuffer(device,
+		indexBufferMemory) = util::createBuffer(*vulkanManager.getVulkanState().device.get(),
 												physicalDeviceMemoryProperties,
 												vk::MemoryPropertyFlagBits::eDeviceLocal,
 												indexBufferSize,
 												vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
 
 	util::uploadIndexData(
-		device,
+		*vulkanManager.getVulkanState().device.get(),
 		indexBufferStagingMemory,
 		indices);
 	//
@@ -303,11 +256,11 @@ int main()
 	{
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
 		commandBufferAllocateInfo.setCommandBufferCount(1);
-		commandBufferAllocateInfo.setCommandPool(*commandPool);
+		commandBufferAllocateInfo.setCommandPool(**vulkanManager.getVulkanState().commandPool.get());
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 		auto commandBuffer = std::move(
 			vk::raii::CommandBuffers{
-				device,
+				*vulkanManager.getVulkanState().device.get(),
 				commandBufferAllocateInfo}[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
@@ -329,7 +282,7 @@ int main()
 
 		queue.submit(submitInfo);
 
-		device.waitIdle();
+		vulkanManager.getVulkanState().device.get()->waitIdle();
 	}
 	//
 
@@ -337,11 +290,11 @@ int main()
 	{
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
 		commandBufferAllocateInfo.setCommandBufferCount(1);
-		commandBufferAllocateInfo.setCommandPool(*commandPool);
+		commandBufferAllocateInfo.setCommandPool(**vulkanManager.getVulkanState().commandPool.get());
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 		auto commandBuffer = std::move(
 			vk::raii::CommandBuffers{
-				device,
+				*vulkanManager.getVulkanState().device.get(),
 				commandBufferAllocateInfo}[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
@@ -363,19 +316,19 @@ int main()
 
 		queue.submit(submitInfo);
 
-		device.waitIdle();
+		vulkanManager.getVulkanState().device.get()->waitIdle();
 	}
 	//
 
 	// UNIFORM BUFFERS
 
-	void *uniformBufferMemPtrs[MAX_FRAMES_IN_FLIGHT];
+	void *uniformBufferMemPtrs[vulkanManager.getVulkanState().maxFramesInFlight];
 	std::vector<vk::raii::Buffer> uniformBuffers;
 	std::vector<vk::raii::DeviceMemory> uniformBufferMemory;
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (int i = 0; i < vulkanManager.getVulkanState().maxFramesInFlight; i++)
 	{
 		auto uniformBuffer = util::createBuffer(
-			device,
+			*vulkanManager.getVulkanState().device.get(),
 			physicalDeviceMemoryProperties,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 			sizeof(UniformBufferObject),
@@ -384,7 +337,7 @@ int main()
 		uniformBufferMemory.push_back(std::move(std::get<vk::raii::DeviceMemory>(uniformBuffer)));
 
 		vkMapMemory(
-			*device,
+			**vulkanManager.getVulkanState().device.get(),
 			*uniformBufferMemory[i],
 			0,
 			sizeof(UniformBufferObject),
@@ -426,9 +379,9 @@ int main()
 	// BEGIN TEXTURES
 
 	Texture texture(
-		device,
-		physicalDevice,
-		commandBuffers[0],
+		*vulkanManager.getVulkanState().device.get(),
+		*vulkanManager.getVulkanState().physicalDevice.get(),
+		(*vulkanManager.getVulkanState().commandBuffers.get())[0],
 		queue,
 		"res/monkey.png");
 
@@ -437,10 +390,10 @@ int main()
 	// DESCRIPTOR SETS
 
 	auto descriptorPool = util::createDescriptorPool(
-		device);
+		*vulkanManager.getVulkanState().device.get());
 
 	auto descriptorSets = util::createDescriptorSets(
-		device,
+		*vulkanManager.getVulkanState().device.get(),
 		descriptorPool,
 		descriptorSetLayout,
 		1);
@@ -456,7 +409,7 @@ int main()
 
 	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
 
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (int i = 0; i < vulkanManager.getVulkanState().maxFramesInFlight; i++)
 	{
 		vk::DescriptorBufferInfo descriptorBufferInfo{};
 		descriptorBufferInfo.setOffset(0);
@@ -483,11 +436,46 @@ int main()
 	writeDescriptorSets[2].setDescriptorCount(1);
 	writeDescriptorSets[2].setImageInfo(imageDescriptorInfo);
 
-	device.updateDescriptorSets(
+	vulkanManager.getVulkanState().device.get()->updateDescriptorSets(
 		writeDescriptorSets,
 		nullptr);
 
 	// END DESCRIPTOR SETS
+
+	// BEGIN IMAGE MEMORY BARRIER
+
+	vk::ImageMemoryBarrier imageMemoryBarrier;
+	imageMemoryBarrier.setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
+	imageMemoryBarrier.setDstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
+	imageMemoryBarrier.setOldLayout(vk::ImageLayout::eUndefined);
+	imageMemoryBarrier.setNewLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+	imageMemoryBarrier.setSubresourceRange(
+		vk::ImageSubresourceRange{
+			vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+			0,
+			1,
+			0,
+			1});
+	imageMemoryBarrier.setSrcAccessMask(vk::AccessFlagBits::eNone);
+	imageMemoryBarrier.setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+
+	CommandBuffer::beginSTC(vulkanManager.getVulkanState().commandBuffers.get()->at(0));
+
+	for (int i = 0; i < depthImages.size(); i++)
+	{
+		imageMemoryBarrier.setImage(*depthImages[i]);
+		vulkanManager.getVulkanState().commandBuffers.get()->at(0).pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe,
+			vk::PipelineStageFlagBits::eEarlyFragmentTests,
+			vk::DependencyFlagBits::eByRegion,
+			nullptr,
+			nullptr,
+			imageMemoryBarrier);
+	}
+
+	CommandBuffer::endSTC(vulkanManager.getVulkanState().commandBuffers.get()->at(0), queue);
+
+	// END IMAGE MEMORY BARRIER
 
 	// BEGIN IMGUI
 
@@ -497,10 +485,10 @@ int main()
 		true);
 
 	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{
-		*instance,
-		*physicalDevice,
-		*device,
-		static_cast<uint32_t>(queueFamilyIndex),
+		**vulkanManager.getVulkanState().instance.get(),
+		**vulkanManager.getVulkanState().physicalDevice.get(),
+		**vulkanManager.getVulkanState().device.get(),
+		static_cast<uint32_t>(vulkanManager.getVulkanState().queueFamilyGraphicsIndex),
 		*queue,
 		*pipelineCache,
 		*descriptorPool,
@@ -509,7 +497,7 @@ int main()
 		surfaceCapabilities.minImageCount,
 		static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
 		false,
-		static_cast<VkFormat>(swapChainFormat.format),
+		static_cast<VkFormat>(vulkanManager.getVulkanState().swapChainFormat.format),
 		nullptr,
 		nullptr};
 
@@ -521,8 +509,8 @@ int main()
 	{
 		vk::raii::CommandBuffer commandBuffer = std::move(
 			util::createCommandBuffers(
-				device,
-				commandPool,
+				*vulkanManager.getVulkanState().device.get(),
+				*vulkanManager.getVulkanState().commandPool.get(),
 				1)[0]);
 
 		vk::CommandBufferBeginInfo commandBufferBeginInfo;
@@ -537,7 +525,7 @@ int main()
 		submitInfo.setCommandBuffers(*commandBuffer);
 		queue.submit(submitInfo);
 
-		device.waitIdle();
+		vulkanManager.getVulkanState().device.get()->waitIdle();
 	}
 
 	ImGui_ImplVulkan_DestroyFontUploadObjects();
@@ -548,19 +536,19 @@ int main()
 
 	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
 	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
-	imageAvailableSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
-	renderFinishedSemaphores.reserve(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	imageAvailableSemaphores.reserve(vulkanManager.getVulkanState().maxFramesInFlight);
+	renderFinishedSemaphores.reserve(vulkanManager.getVulkanState().maxFramesInFlight);
+	for (int i = 0; i < vulkanManager.getVulkanState().maxFramesInFlight; i++)
 	{
-		imageAvailableSemaphores.push_back(device.createSemaphore({}));
-		renderFinishedSemaphores.push_back(device.createSemaphore({}));
+		imageAvailableSemaphores.push_back(vulkanManager.getVulkanState().device->createSemaphore({}));
+		renderFinishedSemaphores.push_back(vulkanManager.getVulkanState().device->createSemaphore({}));
 	}
 
 	std::vector<vk::raii::Fence> inFlightFences;
-	inFlightFences.reserve(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	inFlightFences.reserve(vulkanManager.getVulkanState().maxFramesInFlight);
+	for (int i = 0; i < vulkanManager.getVulkanState().maxFramesInFlight; i++)
 	{
-		inFlightFences.push_back(device.createFence({vk::FenceCreateFlagBits::eSignaled}));
+		inFlightFences.push_back(vulkanManager.getVulkanState().device->createFence({vk::FenceCreateFlagBits::eSignaled}));
 	}
 
 	// END SYNCHRONIZATION
@@ -596,9 +584,11 @@ int main()
 		} rotation{};
 	} modelSettings{};
 
-	commandPool.reset();
+	vulkanManager.getVulkanState().commandPool->reset();
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
+
+	int frames = 0;
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -606,13 +596,16 @@ int main()
 		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
 		lastTime = currentTime;
 
+		std::cout << frames << std::endl;
+		frames++;
+
 		glfwPollEvents();
 
-		res = device.waitForFences(
+		res = vulkanManager.getVulkanState().device->waitForFences(
 			*inFlightFences[currentFrame],
 			VK_TRUE,
 			UINT32_MAX);
-		device.resetFences(*inFlightFences[currentFrame]);
+		vulkanManager.getVulkanState().device->resetFences(*inFlightFences[currentFrame]);
 
 		// IMGUI NEW FRAME
 
@@ -723,29 +716,29 @@ int main()
 		uint32_t imageIndex;
 		std::tie(
 			res,
-			imageIndex) = swapChain.acquireNextImage(UINT64_MAX,
-													 *imageAvailableSemaphores[currentFrame],
-													 VK_NULL_HANDLE);
+			imageIndex) = vulkanManager.getVulkanState().swapChain->acquireNextImage(UINT64_MAX,
+																					 *imageAvailableSemaphores[currentFrame],
+																					 VK_NULL_HANDLE);
 
 		pbr::Frame::begin(
-			commandBuffers[currentFrame],
+			(*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame],
 			pipeline,
 			pipelineLayout,
 			vertexBuffer,
 			indexBuffer,
 			drawDescriptorSets);
 		pbr::Frame::beginRenderPass(
-			commandBuffers[currentFrame],
+			(*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame],
 			renderPass,
 			frameBuffers[imageIndex],
 			clearValues,
 			renderArea);
 		pbr::Frame::draw(
-			commandBuffers[currentFrame],
+			(*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame],
 			renderArea,
 			static_cast<int>(indices.size()));
-		pbr::Frame::endRenderPass(commandBuffers[currentFrame]);
-		pbr::Frame::end(commandBuffers[currentFrame]);
+		pbr::Frame::endRenderPass((*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame]);
+		pbr::Frame::end((*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame]);
 
 		std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
@@ -754,7 +747,7 @@ int main()
 		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
 		submitInfo.setWaitDstStageMask(pipelineStageFlags);
 		submitInfo.setCommandBufferCount(1);
-		submitInfo.setCommandBuffers(*commandBuffers[currentFrame]);
+		submitInfo.setCommandBuffers(*(*vulkanManager.getVulkanState().commandBuffers.get())[currentFrame]);
 		submitInfo.setSignalSemaphoreCount(1);
 		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
 
@@ -764,16 +757,16 @@ int main()
 
 		vk::PresentInfoKHR presentInfo;
 		presentInfo.setSwapchainCount(1);
-		presentInfo.setSwapchains(*swapChain);
+		presentInfo.setSwapchains(**vulkanManager.getVulkanState().swapChain.get());
 		presentInfo.setImageIndices(imageIndex);
 		presentInfo.setWaitSemaphoreCount(1);
 		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
 
 		res = queue.presentKHR(presentInfo);
 
-		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		currentFrame = (currentFrame + 1) % vulkanManager.getVulkanState().maxFramesInFlight;
 	}
-	device.waitIdle();
+	vulkanManager.getVulkanState().device->waitIdle();
 
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();

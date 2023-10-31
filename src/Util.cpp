@@ -1,19 +1,20 @@
 #include "Util.h"
 
-namespace util {
+namespace util
+{
 	vk::raii::Instance createInstance(
-			vk::raii::Context &context,
-			const char *applicationName,
-			const char *engineName
-	) {
+		vk::raii::Context &context,
+		const char *applicationName,
+		const char *engineName,
+		std::optional<vk::DebugUtilsMessengerCreateInfoEXT> debugUtilsMessengerCreateInfo)
+	{
 		std::vector<const char *> enabledLayers{};
 		std::vector<const char *> enabledExtensions{};
 
 #ifdef ENABLE_VULKAN_VALIDATION_LAYERS
-		Validation::getValidationLayers(
-				context,
-				enabledLayers
-		);
+		enabledLayers.push_back("VK_LAYER_KHRONOS_validation");
+		enabledLayers.push_back("VK_LAYER_LUNARG_monitor");
+		Validation::areLayersAvailable(context, enabledLayers);
 #endif
 
 		// Add GLFW necessary extensions
@@ -21,34 +22,25 @@ namespace util {
 		const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 		enabledExtensions.reserve(glfwExtensionCount);
-		for (int i = 0; i < static_cast<int>(glfwExtensionCount); i++) {
+		for (int i = 0; i < static_cast<int>(glfwExtensionCount); i++)
+		{
 			enabledExtensions.push_back(glfwExtensions[i]);
 		}
 
-		enabledExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
-		vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
-		debugUtilsMessengerCreateInfo.setMessageSeverity(
-				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
-				vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
-		);
-		debugUtilsMessengerCreateInfo.setMessageType(
-				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-				vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
-				vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
-		);
-		debugUtilsMessengerCreateInfo.setPfnUserCallback(&VkResCheck::PFN_vkDebugUtilsMessengerCallbackEXT);
+		if (debugUtilsMessengerCreateInfo.has_value())
+		{
+			enabledExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		}
 
 		vk::ApplicationInfo applicationInfo(
-				applicationName,
-				1,
-				engineName,
-				1,
-				vk::ApiVersion13
-		);
+			applicationName,
+			1,
+			engineName,
+			1,
+			vk::ApiVersion13);
 
 		vk::InstanceCreateInfo instanceCreateInfo{};
-		instanceCreateInfo.setPNext(&debugUtilsMessengerCreateInfo);
+		instanceCreateInfo.setPNext(&debugUtilsMessengerCreateInfo.value());
 		instanceCreateInfo.setPApplicationInfo(&applicationInfo);
 		instanceCreateInfo.setEnabledLayerCount(enabledLayers.size());
 		instanceCreateInfo.setPEnabledLayerNames(enabledLayers);
@@ -56,23 +48,22 @@ namespace util {
 		instanceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
 		vk::raii::Instance instance(
-				context,
-				instanceCreateInfo
-		);
-
-		auto debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfo);
+			context,
+			instanceCreateInfo);
 
 		return instance;
 	}
 
 	vk::raii::PhysicalDevice selectPhysicalDevice(
-			vk::raii::Instance &instance
-	) {
+		vk::raii::Instance &instance)
+	{
 		auto physicalDevices = instance.enumeratePhysicalDevices();
 
 		vk::raii::PhysicalDevice selectedDevice(nullptr);
-		for (const auto &pDevice: physicalDevices) {
-			if (pDevice.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+		for (const auto &pDevice : physicalDevices)
+		{
+			if (pDevice.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
+			{
 				selectedDevice = pDevice;
 				break;
 			}
@@ -84,13 +75,15 @@ namespace util {
 	}
 
 	int selectQueueFamily(
-			vk::raii::PhysicalDevice &physicalDevice
-	) {
+		vk::raii::PhysicalDevice &physicalDevice)
+	{
 		auto queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
 		int selectedQueueFamilyIndex = 0;
-		for (const auto &queueFamily: queueFamilyProperties) {
-			if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) break;
+		for (const auto &queueFamily : queueFamilyProperties)
+		{
+			if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)
+				break;
 			selectedQueueFamilyIndex++;
 		}
 
@@ -98,15 +91,14 @@ namespace util {
 	}
 
 	vk::raii::Device createDevice(
-			vk::raii::PhysicalDevice &physicalDevice,
-			int queueFamilyIndex
-	) {
+		vk::raii::PhysicalDevice &physicalDevice,
+		int queueFamilyIndex)
+	{
 		auto queueFamilyProperties = physicalDevice.getQueueFamilyProperties()[queueFamilyIndex];
 
 		std::vector<float> queuePriorities(
-				queueFamilyProperties.queueCount,
-				1.f
-		);
+			queueFamilyProperties.queueCount,
+			1.f);
 
 		vk::DeviceQueueCreateInfo deviceQueueCreateInfo;
 		deviceQueueCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
@@ -126,39 +118,38 @@ namespace util {
 		deviceCreateInfo.setPEnabledFeatures(&physicalDeviceFeatures);
 
 		return {
-				physicalDevice,
-				deviceCreateInfo
-		};
+			physicalDevice,
+			deviceCreateInfo};
 	}
 
 	vk::raii::SurfaceKHR createSurface(
-			vk::raii::Instance &instance,
-			GLFWwindow *window
-	) {
+		vk::raii::Instance &instance,
+		GLFWwindow *window)
+	{
 		VkSurfaceKHR surface = VK_NULL_HANDLE;
 
 		glfwCreateWindowSurface(
-				static_cast<VkInstance>(*instance),
-				window,
-				nullptr,
-				&surface
-		);
+			static_cast<VkInstance>(*instance),
+			window,
+			nullptr,
+			&surface);
 
 		return {
-				instance,
-				surface
-		};
+			instance,
+			surface};
 	}
 
 	// TODO: change the return type to an optional or throw an exception, other functions should as well
 	vk::SurfaceFormatKHR selectSwapChainFormat(
-			vk::raii::PhysicalDevice &physicalDevice,
-			vk::raii::SurfaceKHR &surface
-	) {
+		vk::raii::PhysicalDevice &physicalDevice,
+		vk::raii::SurfaceKHR &surface)
+	{
 		auto formats = physicalDevice.getSurfaceFormatsKHR(*surface);
 
-		for (const auto &format: formats) {
-			if (format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+		for (const auto &format : formats)
+		{
+			if (format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
+			{
 				return format;
 			}
 		}
@@ -167,17 +158,19 @@ namespace util {
 	}
 
 	std::pair<vk::raii::SwapchainKHR, vk::SwapchainCreateInfoKHR> createSwapChain(
-			vk::raii::Device &device,
-			vk::raii::PhysicalDevice &physicalDevice,
-			vk::raii::SurfaceKHR &surface,
-			vk::SurfaceFormatKHR format,
-			vk::SurfaceCapabilitiesKHR capabilities
-	) {
+		vk::raii::Device &device,
+		vk::raii::PhysicalDevice &physicalDevice,
+		vk::raii::SurfaceKHR &surface,
+		vk::SurfaceFormatKHR format,
+		vk::SurfaceCapabilitiesKHR capabilities)
+	{
 		auto presentModes = physicalDevice.getSurfacePresentModesKHR(*surface);
 
 		vk::PresentModeKHR selectedPresentMode;
-		for (const auto &presentMode: presentModes) {
-			if (presentMode == vk::PresentModeKHR::eMailbox) {
+		for (const auto &presentMode : presentModes)
+		{
+			if (presentMode == vk::PresentModeKHR::eMailbox)
+			{
 				selectedPresentMode = presentMode;
 				break;
 			}
@@ -200,61 +193,60 @@ namespace util {
 		swapChainCreateInfo.setImageExtent(capabilities.currentExtent);
 
 		return std::pair{
-				vk::raii::SwapchainKHR{
-						device,
-						swapChainCreateInfo
-				},
-				swapChainCreateInfo
-		};
+			vk::raii::SwapchainKHR{
+				device,
+				swapChainCreateInfo},
+			swapChainCreateInfo};
 	}
 
 	vk::raii::CommandPool createCommandPool(
-			vk::raii::Device &device,
-			int queueFamilyIndex
-	) {
+		vk::raii::Device &device,
+		int queueFamilyIndex)
+	{
 		vk::CommandPoolCreateInfo commandPoolCreateInfo;
 		commandPoolCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
 		commandPoolCreateInfo.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
 		return {
-				device,
-				commandPoolCreateInfo
-		};
+			device,
+			commandPoolCreateInfo};
 	}
 
 	vk::raii::CommandBuffers createCommandBuffers(
-			vk::raii::Device &device,
-			vk::raii::CommandPool &commandPool,
-			int count
-	) {
+		vk::raii::Device &device,
+		vk::raii::CommandPool &commandPool,
+		int count)
+	{
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
 		commandBufferAllocateInfo.setCommandPool(*commandPool);
 		commandBufferAllocateInfo.setCommandBufferCount(count);
 		commandBufferAllocateInfo.setLevel(vk::CommandBufferLevel::ePrimary);
 
 		return {
-				device,
-				commandBufferAllocateInfo
-		};
+			device,
+			commandBufferAllocateInfo};
 	}
 
-	vk::Format selectDepthFormat(vk::raii::PhysicalDevice &physicalDevice) {
+	vk::Format selectDepthFormat(vk::raii::PhysicalDevice &physicalDevice)
+	{
 		std::vector<vk::Format> depthFormats{
-				vk::Format::eD32Sfloat,
-				vk::Format::eD32SfloatS8Uint,
-				vk::Format::eD24UnormS8Uint
-		};
+			//vk::Format::eD32Sfloat,
+			vk::Format::eD32SfloatS8Uint,
+			vk::Format::eD24UnormS8Uint};
 
 		std::optional<vk::Format> selectedFormat;
-		for (const auto &depthFormat: depthFormats) {
+		for (const auto &depthFormat : depthFormats)
+		{
 			vk::FormatProperties formatProperties = physicalDevice.getFormatProperties(depthFormat);
-			if (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+			if (formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment)
+			{
 				selectedFormat = depthFormat;
 				break;
 			}
 		}
 
-		if (!selectedFormat.has_value()) {
+		if (!selectedFormat.has_value())
+		{
 			std::cerr << "Could not find required depth format!" << std::endl;
 			throw std::runtime_error("selectDepthFormat");
 		}
@@ -263,84 +255,80 @@ namespace util {
 	}
 
 	std::vector<vk::raii::ImageView> createImageViews(
-			vk::raii::Device &device,
-			std::vector<vk::Image> &images,
-			vk::Format format,
-			vk::ImageAspectFlags imageAspectFlags
-	) {
+		vk::raii::Device &device,
+		std::vector<vk::Image> &images,
+		vk::Format format,
+		vk::ImageAspectFlags imageAspectFlags)
+	{
 		std::vector<vk::raii::ImageView> res;
 		res.reserve(images.size());
 
-		for (auto image: images) {
+		for (auto image : images)
+		{
 			res.push_back(
-					createImageView(
-							device,
-							image,
-							format,
-							imageAspectFlags
-					)
-			);
+				createImageView(
+					device,
+					image,
+					format,
+					imageAspectFlags));
 		}
 
 		return res;
 	}
 
 	vk::raii::ImageView createImageView(
-			vk::raii::Device &device,
-			vk::Image image,
-			vk::Format format,
-			vk::ImageAspectFlags imageAspectFlags
-	) {
+		vk::raii::Device &device,
+		vk::Image image,
+		vk::Format format,
+		vk::ImageAspectFlags imageAspectFlags)
+	{
 		vk::ImageViewCreateInfo imageViewCreateInfo{};
 		imageViewCreateInfo.setFormat(format);
 		imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
 		imageViewCreateInfo.setSubresourceRange(
-				{
-						imageAspectFlags,
-						0,
-						1,
-						0,
-						1
-				}
-		);
+			{imageAspectFlags,
+			 0,
+			 1,
+			 0,
+			 1});
 		imageViewCreateInfo.setImage(image);
 
 		return {
-				device,
-				imageViewCreateInfo
-		};
+			device,
+			imageViewCreateInfo};
 	}
 
-	std::vector<uint32_t> loadShaderCode(const char *path) {
+	std::vector<uint32_t> loadShaderCode(const char *path)
+	{
 		std::ifstream shaderFile(
-				path,
-				std::ios::in | std::ios::binary
-		);
+			path,
+			std::ios::in | std::ios::binary);
 
 		std::streamsize size;
 
 		shaderFile.seekg(
-				0,
-				std::ios::end
-		);
+			0,
+			std::ios::end);
 		size = shaderFile.tellg();
 		shaderFile.seekg(
-				0,
-				std::ios::beg
-		);
+			0,
+			std::ios::beg);
 
 		std::vector<uint32_t> res;
 
-		if (shaderFile.is_open()) {
+		if (shaderFile.is_open())
+		{
 			uint32_t current;
-			while (shaderFile.tellg() < size) {
+			while (shaderFile.tellg() < size)
+			{
 				shaderFile.read(
-						reinterpret_cast<char *>(&current),
-						sizeof(current)
-				);
+					reinterpret_cast<char *>(&current),
+					sizeof(current));
 				res.push_back(current);
 			}
-		} else {
+		}
+		else
+		{
 			std::cerr << "Could not open shader file!" << std::endl;
 			throw std::runtime_error(path);
 		}
@@ -351,10 +339,10 @@ namespace util {
 	}
 
 	std::vector<vk::raii::ShaderModule> createShaderModules(
-			vk::raii::Device &device,
-			const char *vertexShaderPath,
-			const char *fragmentShaderPath
-	) {
+		vk::raii::Device &device,
+		const char *vertexShaderPath,
+		const char *fragmentShaderPath)
+	{
 		auto vertexShaderCode = loadShaderCode(vertexShaderPath);
 		auto fragmentShaderCode = loadShaderCode(fragmentShaderPath);
 
@@ -369,24 +357,22 @@ namespace util {
 		std::vector<vk::raii::ShaderModule> res;
 
 		res.emplace_back(
-				device,
-				vertexShaderModuleCreateInfo
-		);
+			device,
+			vertexShaderModuleCreateInfo);
 
 		res.emplace_back(
-				device,
-				fragmentShaderModuleCreateInfo
-		);
+			device,
+			fragmentShaderModuleCreateInfo);
 
 		return res;
 	}
 
 	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
 	createPipeline(
-			vk::raii::Device &device,
-			vk::raii::RenderPass &renderPass,
-			std::vector<vk::raii::ShaderModule> &shaderModules
-	) {
+		vk::raii::Device &device,
+		vk::raii::RenderPass &renderPass,
+		std::vector<vk::raii::ShaderModule> &shaderModules)
+	{
 		// Shader Stages
 		vk::PipelineShaderStageCreateInfo vertexShaderStageCreateInfo;
 		vertexShaderStageCreateInfo.setModule(*shaderModules[0]);
@@ -399,17 +385,15 @@ namespace util {
 		fragmentShaderStageCreateInfo.setStage(vk::ShaderStageFlagBits::eFragment);
 
 		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{
-				vertexShaderStageCreateInfo,
-				fragmentShaderStageCreateInfo
-		};
+			vertexShaderStageCreateInfo,
+			fragmentShaderStageCreateInfo};
 
 		// Fixed Functions
 
 		// Dynamic State
 		std::vector<vk::DynamicState> dynamicStates{
-				vk::DynamicState::eViewport,
-				vk::DynamicState::eScissor
-		};
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor};
 
 		vk::PipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
 		pipelineDynamicStateCreateInfo.setDynamicStateCount(dynamicStates.size());
@@ -466,11 +450,10 @@ namespace util {
 		vk::PipelineColorBlendAttachmentState colorBlendAttachmentState;
 		colorBlendAttachmentState.setBlendEnable(vk::False);
 		colorBlendAttachmentState.setColorWriteMask(
-				vk::ColorComponentFlagBits::eR |
-				vk::ColorComponentFlagBits::eG |
-				vk::ColorComponentFlagBits::eB |
-				vk::ColorComponentFlagBits::eA
-		);
+			vk::ColorComponentFlagBits::eR |
+			vk::ColorComponentFlagBits::eG |
+			vk::ColorComponentFlagBits::eB |
+			vk::ColorComponentFlagBits::eA);
 
 		vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo;
 		pipelineColorBlendStateCreateInfo.setAttachmentCount(1);
@@ -491,18 +474,16 @@ namespace util {
 		imageSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
 
 		std::array<vk::DescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings = {
-				uboLayoutBinding,
-				imageSamplerBinding
-		};
+			uboLayoutBinding,
+			imageSamplerBinding};
 
 		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
 		descriptorSetLayoutCreateInfo.setBindingCount(descriptorSetLayoutBindings.size());
 		descriptorSetLayoutCreateInfo.setBindings(descriptorSetLayoutBindings);
 
 		vk::raii::DescriptorSetLayout descriptorSetLayout{
-				device,
-				descriptorSetLayoutCreateInfo
-		};
+			device,
+			descriptorSetLayoutCreateInfo};
 
 		// Pipeline Layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
@@ -510,9 +491,8 @@ namespace util {
 		pipelineLayoutCreateInfo.setSetLayouts(*descriptorSetLayout);
 
 		vk::raii::PipelineLayout pipelineLayout(
-				device,
-				pipelineLayoutCreateInfo
-		);
+			device,
+			pipelineLayoutCreateInfo);
 
 		vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo;
 		graphicsPipelineCreateInfo.setLayout(*pipelineLayout);
@@ -530,31 +510,28 @@ namespace util {
 
 		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
 		vk::raii::PipelineCache pipelineCache{
-				device,
-				pipelineCacheCreateInfo
-		};
+			device,
+			pipelineCacheCreateInfo};
 
 		vk::raii::Pipeline pipeline{
-				device,
-				pipelineCache,
-				graphicsPipelineCreateInfo
-		};
+			device,
+			pipelineCache,
+			graphicsPipelineCreateInfo};
 
 		return {
-				std::move(pipeline),
-				std::move(pipelineLayout),
-				std::move(pipelineCache),
-				std::move(descriptorSetLayout)
-		};
+			std::move(pipeline),
+			std::move(pipelineLayout),
+			std::move(pipelineCache),
+			std::move(descriptorSetLayout)};
 	}
 
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
-			vk::raii::Device &device,
-			vk::raii::RenderPass &renderPass,
-			std::vector<vk::raii::ImageView> &imageViews,
-			vk::raii::ImageView &depthImageView,
-			vk::SurfaceCapabilitiesKHR surfaceCapabilities
-	) {
+		vk::raii::Device &device,
+		vk::raii::RenderPass &renderPass,
+		std::vector<vk::raii::ImageView> &imageViews,
+		std::vector<vk::raii::ImageView> &depthImageViews,
+		vk::SurfaceCapabilitiesKHR surfaceCapabilities)
+	{
 		std::vector<vk::raii::Framebuffer> frameBuffers;
 
 		vk::FramebufferCreateInfo framebufferCreateInfo;
@@ -563,28 +540,27 @@ namespace util {
 		framebufferCreateInfo.setWidth(surfaceCapabilities.currentExtent.width);
 		framebufferCreateInfo.setHeight(surfaceCapabilities.currentExtent.height);
 
-		for (auto &imageView: imageViews) {
+		for (int i = 0; i < imageViews.size(); i++)
+		{
 			std::vector<vk::ImageView> imageViewAttachments{
-					*imageView,
-					*depthImageView
-			};
+				*imageViews[i],
+				*depthImageViews[i]};
 
 			framebufferCreateInfo.setAttachments(imageViewAttachments);
 			framebufferCreateInfo.setAttachmentCount(imageViewAttachments.size());
 			frameBuffers.emplace_back(
-					device,
-					framebufferCreateInfo
-			);
+				device,
+				framebufferCreateInfo);
 		}
 
 		return frameBuffers;
 	}
 
 	vk::raii::RenderPass createRenderPass(
-			vk::raii::Device &device,
-			vk::SurfaceFormatKHR surfaceFormat,
-			vk::Format depthFormat
-	) {
+		vk::raii::Device &device,
+		vk::SurfaceFormatKHR surfaceFormat,
+		vk::Format depthFormat)
+	{
 		// Render Pass
 		vk::AttachmentDescription attachmentDescription;
 		attachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
@@ -624,20 +600,16 @@ namespace util {
 		subpassDependency.setSrcSubpass(vk::SubpassExternal);
 		subpassDependency.setDstSubpass(0);
 		subpassDependency.setSrcStageMask(
-				vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests
-		);
+			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests);
 		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eNone);
 		subpassDependency.setDstStageMask(
-				vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests
-		);
+			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests);
 		subpassDependency.setDstAccessMask(
-				vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite
-		);
+			vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite);
 
 		std::vector<vk::AttachmentDescription> attachments{
-				attachmentDescription,
-				depthAttachmentDescription
-		};
+			attachmentDescription,
+			depthAttachmentDescription};
 
 		vk::RenderPassCreateInfo renderPassCreateInfo;
 		renderPassCreateInfo.setAttachmentCount(attachments.size());
@@ -648,59 +620,36 @@ namespace util {
 		renderPassCreateInfo.setDependencyCount(1);
 
 		return {
-				device,
-				renderPassCreateInfo
-		};
+			device,
+			renderPassCreateInfo};
 	}
 
-	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device) {
+	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device)
+	{
 		// TODO fix the sizes for these descriptor pools
 		std::vector<vk::DescriptorPoolSize> descriptorPoolSizes{
-				{
-						vk::DescriptorType::eSampler,
-						1000
-				},
-				{
-						vk::DescriptorType::eCombinedImageSampler,
-						1000
-				},
-				{
-						vk::DescriptorType::eSampledImage,
-						1000
-				},
-				{
-						vk::DescriptorType::eStorageImage,
-						1000
-				},
-				{
-						vk::DescriptorType::eUniformTexelBuffer,
-						1000
-				},
-				{
-						vk::DescriptorType::eStorageTexelBuffer,
-						1000
-				},
-				{
-						vk::DescriptorType::eUniformBuffer,
-						1000
-				},
-				{
-						vk::DescriptorType::eStorageBuffer,
-						1000
-				},
-				{
-						vk::DescriptorType::eUniformBufferDynamic,
-						1000
-				},
-				{
-						vk::DescriptorType::eStorageBufferDynamic,
-						1000
-				},
-				{
-						vk::DescriptorType::eInputAttachment,
-						1000
-				}
-		};
+			{vk::DescriptorType::eSampler,
+			 1000},
+			{vk::DescriptorType::eCombinedImageSampler,
+			 1000},
+			{vk::DescriptorType::eSampledImage,
+			 1000},
+			{vk::DescriptorType::eStorageImage,
+			 1000},
+			{vk::DescriptorType::eUniformTexelBuffer,
+			 1000},
+			{vk::DescriptorType::eStorageTexelBuffer,
+			 1000},
+			{vk::DescriptorType::eUniformBuffer,
+			 1000},
+			{vk::DescriptorType::eStorageBuffer,
+			 1000},
+			{vk::DescriptorType::eUniformBufferDynamic,
+			 1000},
+			{vk::DescriptorType::eStorageBufferDynamic,
+			 1000},
+			{vk::DescriptorType::eInputAttachment,
+			 1000}};
 
 		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
 		descriptorPoolCreateInfo.setFlags(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
@@ -709,20 +658,20 @@ namespace util {
 		descriptorPoolCreateInfo.setMaxSets(1000);
 
 		return {
-				device,
-				descriptorPoolCreateInfo
-		};
+			device,
+			descriptorPoolCreateInfo};
 	}
 
 	std::vector<vk::raii::DescriptorSet> createDescriptorSets(
-			vk::raii::Device &device,
-			vk::raii::DescriptorPool &descriptorPool,
-			vk::raii::DescriptorSetLayout &descriptorSetLayout,
-			int descriptorSetCount
-	) {
+		vk::raii::Device &device,
+		vk::raii::DescriptorPool &descriptorPool,
+		vk::raii::DescriptorSetLayout &descriptorSetLayout,
+		int descriptorSetCount)
+	{
 		std::vector<vk::raii::DescriptorSet> res;
 
-		for (int i = 0; i < descriptorSetCount; i++) {
+		for (int i = 0; i < descriptorSetCount; i++)
+		{
 			vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
 			descriptorSetAllocateInfo.setDescriptorPool(*descriptorPool);
 			descriptorSetAllocateInfo.setSetLayouts(*descriptorSetLayout);
@@ -735,61 +684,58 @@ namespace util {
 	}
 
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
-			vk::raii::Device &device,
-			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
-			vk::Flags<vk::MemoryPropertyFlagBits> memoryProperties,
-			vk::DeviceSize bufferSize,
-			vk::Flags<vk::BufferUsageFlagBits> usage
-	) {
+		vk::raii::Device &device,
+		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
+		vk::Flags<vk::MemoryPropertyFlagBits> memoryProperties,
+		vk::DeviceSize bufferSize,
+		vk::Flags<vk::BufferUsageFlagBits> usage)
+	{
 		vk::BufferCreateInfo bufferCreateInfo;
 		bufferCreateInfo.setUsage(usage);
 		bufferCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
 		bufferCreateInfo.setSize(bufferSize);
 
 		vk::raii::Buffer buffer{
-				device,
-				bufferCreateInfo
-		};
+			device,
+			bufferCreateInfo};
 
 		const auto memoryRequirements = buffer.getMemoryRequirements();
 
 		const auto memoryIndex = findMemoryIndex(
-				memoryRequirements,
-				memoryProperties,
-				physicalDeviceMemoryProperties
-		);
+			memoryRequirements,
+			memoryProperties,
+			physicalDeviceMemoryProperties);
 
 		vk::MemoryAllocateInfo memoryAllocateInfo;
 		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex);
 		memoryAllocateInfo.setAllocationSize(memoryRequirements.size);
 		vk::raii::DeviceMemory deviceMemory{
-				device,
-				memoryAllocateInfo
-		};
+			device,
+			memoryAllocateInfo};
 
 		buffer.bindMemory(
-				*deviceMemory,
-				0
-		);
+			*deviceMemory,
+			0);
 
 		return {
-				std::move(buffer),
-				std::move(deviceMemory)
-		};
+			std::move(buffer),
+			std::move(deviceMemory)};
 	}
 
 	uint32_t findMemoryIndex(
-			vk::MemoryRequirements memoryRequirements,
-			vk::MemoryPropertyFlags memoryPropertyFlags,
-			vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties
-	) {
+		vk::MemoryRequirements memoryRequirements,
+		vk::MemoryPropertyFlags memoryPropertyFlags,
+		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties)
+	{
 		auto requiredMemoryBits = memoryRequirements.memoryTypeBits;
 
-		for (uint32_t i = 0; physicalDeviceMemoryProperties.memoryTypeCount; i++) {
+		for (uint32_t i = 0; physicalDeviceMemoryProperties.memoryTypeCount; i++)
+		{
 			const uint32_t memoryTypeBits = 1 << i;
 			const bool isRequiredMemoryType = memoryTypeBits & requiredMemoryBits;
 			if (isRequiredMemoryType &&
-			    physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags) {
+				physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags)
+			{
 				return i;
 			}
 		}
@@ -798,15 +744,15 @@ namespace util {
 	}
 
 	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
-			vk::raii::Device &device,
-			vk::raii::PhysicalDevice &physicalDevice,
-			vk::ImageTiling tiling,
-			vk::ImageUsageFlags imageUsageFlags,
-			vk::Format format,
-			vk::Extent3D extent,
-			vk::ImageType imageType,
-			vk::MemoryPropertyFlags memoryPropertyFlags
-	) {
+		vk::raii::Device &device,
+		vk::raii::PhysicalDevice &physicalDevice,
+		vk::ImageTiling tiling,
+		vk::ImageUsageFlags imageUsageFlags,
+		vk::Format format,
+		vk::Extent3D extent,
+		vk::ImageType imageType,
+		vk::MemoryPropertyFlags memoryPropertyFlags)
+	{
 		vk::ImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.setTiling(tiling);
 		imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
@@ -824,10 +770,9 @@ namespace util {
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties = physicalDevice.getMemoryProperties();
 
 		const auto memoryIndex = findMemoryIndex(
-				memoryRequirements,
-				memoryPropertyFlags,
-				physicalDeviceMemoryProperties
-		);
+			memoryRequirements,
+			memoryPropertyFlags,
+			physicalDeviceMemoryProperties);
 
 		vk::MemoryAllocateInfo memoryAllocateInfo;
 		memoryAllocateInfo.setMemoryTypeIndex(memoryIndex);
@@ -836,49 +781,43 @@ namespace util {
 		vk::raii::DeviceMemory imageMemory = device.allocateMemory(memoryAllocateInfo);
 
 		image.bindMemory(
-				*imageMemory,
-				0
-		);
+			*imageMemory,
+			0);
 
 		return {
-				std::move(image),
-				std::move(imageMemory)
-		};
+			std::move(image),
+			std::move(imageMemory)};
 	}
 
 	void uploadVertexData(
-			vk::raii::Device &device,
-			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<Vertex> &vertices
-	) {
+		vk::raii::Device &device,
+		vk::raii::DeviceMemory &stagingBufferMemory,
+		const std::vector<Vertex> &vertices)
+	{
 		const auto bufferSize = sizeof(vertices[0]) * vertices.size();
 		void *data = stagingBufferMemory.mapMemory(
-				0,
-				bufferSize
-		);
+			0,
+			bufferSize);
 		memcpy(
-				data,
-				vertices.data(),
-				bufferSize
-		);
+			data,
+			vertices.data(),
+			bufferSize);
 		stagingBufferMemory.unmapMemory();
 	}
 
 	void uploadIndexData(
-			vk::raii::Device &device,
-			vk::raii::DeviceMemory &stagingBufferMemory,
-			const std::vector<uint16_t> &indices
-	) {
+		vk::raii::Device &device,
+		vk::raii::DeviceMemory &stagingBufferMemory,
+		const std::vector<uint16_t> &indices)
+	{
 		const auto bufferSize = sizeof(indices[0]) * indices.size();
 		void *data = stagingBufferMemory.mapMemory(
-				0,
-				bufferSize
-		);
+			0,
+			bufferSize);
 		memcpy(
-				data,
-				indices.data(),
-				bufferSize
-		);
+			data,
+			indices.data(),
+			bufferSize);
 		stagingBufferMemory.unmapMemory();
 	}
 } // pbr

@@ -6,37 +6,32 @@
 #include "string"
 #include "iostream"
 
-class Validation {
+class Validation
+{
 public:
-	static void getValidationLayers(
-			vk::raii::Context &context,
-			std::vector<const char *> &enabledLayers
-	) {
-		std::vector<std::string> requestedLayers{
-				"VK_LAYER_KHRONOS_validation",
-				"VK_LAYER_LUNARG_monitor"
-		};
-
+	static void areLayersAvailable(vk::raii::Context &context, std::vector<const char *> &requestedLayers)
+	{
 		auto availableLayers = context.enumerateInstanceLayerProperties();
 
-		for (const auto &currentLayer: requestedLayers) {
-			bool isLayerAvailable = std::any_of(
-					availableLayers.begin(),
-					availableLayers.end(),
-					[currentLayer](vk::LayerProperties layer) -> bool {
-						if (currentLayer == std::string(layer.layerName)) return true;
-						return false;
-					}
-			);
-			if (isLayerAvailable) {
-				enabledLayers.push_back(
-						currentLayer.c_str()
-				);
-			} else {
-				std::cerr << "Requested vulkan layer: " << currentLayer << " is not available!" << std::endl;
-			}
+		bool available = true;
+		for (const auto &layer : requestedLayers)
+		{
+			available = std::any_of(availableLayers.begin(), availableLayers.end(),
+									[layer](vk::LayerProperties &props) -> bool
+									{
+										if (strcmp(layer, props.layerName) == 0)
+											return true;
+										return false;
+									});
+			if (!available)
+				break;
+		}
+
+		if (!available)
+		{
+			throw std::runtime_error("Requested validation layers unavailable!");
 		}
 	}
 };
 
-#endif //VK_PBR_RENDERER_VALIDATION_H
+#endif // VK_PBR_RENDERER_VALIDATION_H

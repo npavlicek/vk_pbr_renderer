@@ -183,43 +183,44 @@ khronos_validation.warn_on_robust_oob = true
 # <LayerIdentifier>.validate_best_practices
 # Outputs warnings related to common misuse of the API, but which are not
 # explicitly prohibited by the specification.
-khronos_validation.validate_best_practices = true
+khronos_validation.validate_best_practices = false
 
 # ARM-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_arm
 # Outputs warnings for spec-conforming but non-ideal code on ARM GPUs.
-khronos_validation.validate_best_practices_arm = false
+#khronos_validation.validate_best_practices_arm = false
 
 # AMD-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_amd
 # Outputs warnings for spec-conforming but non-ideal code on AMD GPUs.
-khronos_validation.validate_best_practices_amd = false
+#khronos_validation.validate_best_practices_amd = false
 
 # IMG-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_img
 # Outputs warnings for spec-conforming but non-ideal code on Imagination GPUs.
-khronos_validation.validate_best_practices_img = false
+#khronos_validation.validate_best_practices_img = false
 
 # NVIDIA-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_nvidia
 # Outputs warnings for spec-conforming but non-ideal code on NVIDIA GPUs.
-khronos_validation.validate_best_practices_nvidia = true
+#khronos_validation.validate_best_practices_nvidia = true
 
 # Debug Action
 # =====================
 # <LayerIdentifier>.debug_action
 # Specifies what action is to be taken when a layer reports information
-khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG
+#khronos_validation.debug_action = VK_DBG_LAYER_ACTION_BREAK
+khronos_validation.debug_action =
 
 # Log Filename
 # =====================
 # <LayerIdentifier>.log_filename
 # Specifies the output filename
-khronos_validation.log_filename = stdout
+#khronos_validation.log_filename = stdout
 
 # Message Severity
 # =====================
@@ -232,17 +233,18 @@ khronos_validation.report_flags = error,perf,info,warn
 # =====================
 # <LayerIdentifier>.enable_message_limit
 # Enable limiting of duplicate messages.
-khronos_validation.enable_message_limit = true
+khronos_validation.enable_message_limit = false
 
 # Max Duplicated Messages
 # =====================
 # <LayerIdentifier>.duplicate_message_limit
 # Maximum number of times any single validation message should be reported.
-khronos_validation.duplicate_message_limit = 10
+khronos_validation.duplicate_message_limit = 20
 
 # Mute Message VUIDs
 # =====================
 # <LayerIdentifier>.message_id_filter
 # List of VUIDs and VUID identifers which are to be IGNORED by the validation
 # layer
-khronos_validation.message_id_filter = 
+khronos_validation.message_id_filter =
+
