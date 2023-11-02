@@ -23,7 +23,6 @@ namespace pbr {
 				*vertexBuffer,
 				vk::DeviceSize{0}
 		);
-
 		commandBuffer.bindIndexBuffer(
 				*indexBuffer,
 				0,

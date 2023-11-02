@@ -22,6 +22,7 @@
 #include "VkErrorHandling.h"
 #include "Texture.h"
 #include "VulkanManager.h"
+#include "Renderer.h"
 
 int currentFrame = 0;
 
@@ -52,12 +53,11 @@ std::tuple<std::vector<Vertex>, std::vector<uint16_t>> loadObj(const char *filen
 	tinyobj::ObjReaderConfig config{};
 	config.triangulate = true;
 	tinyobj::ObjReader objReader{};
-	objReader.ParseFromFile(
-		filename,
-		config);
+	objReader.ParseFromFile(filename, config);
 
 	const auto attrib = objReader.GetAttrib();
 	const auto shapes = objReader.GetShapes();
+	const auto materials = objReader.GetMaterials();
 	// const std::vector<tinyobj::material_t> &materials = objReader.GetMaterials();
 
 	std::srand(std::time(nullptr));
@@ -118,66 +118,7 @@ int main()
 	VkResCheck res;
 
 	VulkanManager vulkanManager(window, 2);
-
-	// BEGIN DEPTH IMAGE
-
-	vk::Format depthImageFormat = util::selectDepthFormat(*vulkanManager.getVulkanState().physicalDevice.get());
-
-	auto surfaceCapabilities = vulkanManager.getVulkanState().surfaceCapabilities;
-
-	std::vector<vk::raii::DeviceMemory> depthImageMemorys;
-	std::vector<vk::raii::Image> depthImages;
-	std::vector<vk::Image> depthImagesTemp;
-
-	// TODO: MODIFY THE RANGE OF THIS LOOP TO MATCH HOWEVER MANY IMAGES WE GET ON THE SWAPCHAIN
-	for (int i = 0; i < 3; i++)
-	{
-		vk::raii::DeviceMemory depthImageMemory{nullptr};
-		vk::raii::Image depthImage{nullptr};
-		std::tie(
-			depthImage,
-			depthImageMemory) = util::createImage(*vulkanManager.getVulkanState().device.get(), *vulkanManager.getVulkanState().physicalDevice.get(), vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, depthImageFormat, {surfaceCapabilities.currentExtent.width, surfaceCapabilities.currentExtent.height, 1}, vk::ImageType::e2D, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		depthImageMemorys.push_back(std::move(depthImageMemory));
-		depthImagesTemp.push_back(*depthImage);
-		depthImages.push_back(std::move(depthImage));
-	}
-
-	std::vector<vk::raii::ImageView> depthImageViews = util::createImageViews(
-		*vulkanManager.getVulkanState().device.get(),
-		depthImagesTemp,
-		depthImageFormat,
-		vk::ImageAspectFlagBits::eDepth);
-
-	depthImagesTemp.clear();
-
-	// END DEPTH IMAGE
-
-	auto renderPass = util::createRenderPass(
-		*vulkanManager.getVulkanState().device.get(),
-		vulkanManager.getVulkanState().swapChainFormat,
-		depthImageFormat);
-
-	vk::raii::Pipeline pipeline{nullptr};
-	vk::raii::PipelineLayout pipelineLayout{nullptr};
-	vk::raii::PipelineCache pipelineCache{nullptr};
-	vk::raii::DescriptorSetLayout descriptorSetLayout{nullptr};
-	std::tie(
-		pipeline,
-		pipelineLayout,
-		pipelineCache,
-		descriptorSetLayout) = util::createPipeline(*vulkanManager.getVulkanState().device.get(), renderPass, *vulkanManager.getVulkanState().shaderModules.get());
-	auto queue = vulkanManager.getVulkanState().device.get()->getQueue(
-		vulkanManager.getVulkanState().queueFamilyGraphicsIndex,
-		0);
-
-	std::cout << "NUMBER OF IMAGES: " << vulkanManager.getVulkanState().swapChainImageViews.get()->size() << std::endl;
-
-	auto frameBuffers = util::createFrameBuffers(
-		*vulkanManager.getVulkanState().device.get(),
-		renderPass,
-		*vulkanManager.getVulkanState().swapChainImageViews.get(),
-		depthImageViews,
-		vulkanManager.getVulkanState().surfaceCapabilities);
+	Renderer renderer(window);
 
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
