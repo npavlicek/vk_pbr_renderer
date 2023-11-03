@@ -1,5 +1,4 @@
-#ifndef VK_PBR_RENDERER_VKERRORHANDLING_H
-#define VK_PBR_RENDERER_VKERRORHANDLING_H
+#pragma once
 
 #include <iostream>
 #include <vulkan/vulkan.hpp>
@@ -72,5 +71,3 @@ public:
 private:
 	vk::Result lastResult{};
 };
-
-#endif // VK_PBR_RENDERER_VKERRORHANDLING_H

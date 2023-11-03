@@ -1,5 +1,4 @@
-#ifndef VK_PBR_RENDERER_UTIL_H
-#define VK_PBR_RENDERER_UTIL_H
+#pragma once
 
 #include <iostream>
 #include <fstream>
@@ -111,5 +110,3 @@ namespace util
 		vk::MemoryPropertyFlags memoryPropertyFlags,
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties);
 } // util
-
-#endif // VK_PBR_RENDERER_UTIL_H

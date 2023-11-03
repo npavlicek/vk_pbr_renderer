@@ -1,5 +1,4 @@
-#ifndef VK_PBR_RENDERER_VALIDATION_H
-#define VK_PBR_RENDERER_VALIDATION_H
+#pragma once
 
 #include "vulkan/vulkan_raii.hpp"
 
@@ -33,5 +32,3 @@ public:
 		}
 	}
 };
-
-#endif // VK_PBR_RENDERER_VALIDATION_H

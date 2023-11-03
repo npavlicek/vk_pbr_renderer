@@ -1,5 +1,4 @@
-#ifndef VK_PBR_RENDERER_TEXTURE_H
-#define VK_PBR_RENDERER_TEXTURE_H
+#pragma once
 
 #include "vulkan/vulkan_raii.hpp"
 
@@ -54,4 +53,3 @@ private:
 		vk::ImageLayout newLayout);
 };
 
-#endif // VK_PBR_RENDERER_TEXTURE_H

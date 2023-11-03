@@ -1,5 +1,4 @@
-#ifndef VK_PBR_RENDERER_FRAME_H
-#define VK_PBR_RENDERER_FRAME_H
+#pragma once
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -33,5 +32,3 @@ namespace pbr
 			int vertexCount);
 	};
 } // pbr
-
-#endif // VK_PBR_RENDERER_FRAME_H
