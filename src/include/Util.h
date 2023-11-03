@@ -9,7 +9,7 @@
 #include <vulkan/vulkan_to_string.hpp>
 #include <GLFW/glfw3.h>
 
-#include "Vertex.h"
+#include "Mesh.h"
 #include "Validation.h"
 #include "VkErrorHandling.h"
 

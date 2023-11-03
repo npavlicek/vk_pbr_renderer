@@ -5,8 +5,6 @@
 class CommandBuffer
 {
 public:
-	static void beginSTC(vk::raii::CommandBuffer &buffer);
-	static void endSTC(
-		vk::raii::CommandBuffer &buffer,
-		vk::raii::Queue &queue);
+	static void beginSTC(const vk::CommandBuffer &buffer);
+	static void endSTC(const vk::CommandBuffer &buffer, const vk::Queue &queue);
 };

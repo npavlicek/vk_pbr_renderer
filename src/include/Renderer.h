@@ -7,6 +7,7 @@
 #include "Texture.h"
 #include "VkErrorHandling.h"
 #include "Frame.h"
+#include "Model.h"
 
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_glfw.h>
@@ -34,15 +35,15 @@ public:
 	Renderer(const Renderer &&rhs) = delete;
 	~Renderer();
 
-	void uploadVertexData(const std::vector<Vertex> &vertices);
-	void uploadIndexData(const std::vector<uint16_t> &indices);
 	void uploadUniformData(const UniformData &uniformData, int frame);
 	void updateDescriptorSets(const Texture &tex);
 	Texture createTexture(const char *path);
-	void loop();
+	Model createModel(const char *path);
+	void loop(const Model &model);
 	void destroy();
 
 private:
+	// TODO: Convert back to non raii vk handles
 	vk::raii::Context context;
 	vk::raii::Instance instance{nullptr};
 	vk::raii::DebugUtilsMessengerEXT debugMessenger{nullptr};

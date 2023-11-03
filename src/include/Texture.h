@@ -52,4 +52,3 @@ private:
 		vk::ImageLayout oldLayout,
 		vk::ImageLayout newLayout);
 };
-

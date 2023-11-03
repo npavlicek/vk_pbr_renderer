@@ -81,6 +81,17 @@ Renderer::Renderer(GLFWwindow *window)
 Renderer::~Renderer()
 {
 	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
+
+	vmaDestroyBuffer(vmaAllocator, vertexBuffer, vertexBufferAllocation);
+	vmaDestroyBuffer(vmaAllocator, indexBuffer, indexBufferAllocation);
+
+	for (int i = 0; i < static_cast<int>(uniformBuffers.size()); i++)
+	{
+		vmaUnmapMemory(vmaAllocator, uniformBufferAllocations[i]);
+		vmaDestroyBuffer(vmaAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+	}
+
+	vmaDestroyAllocator(vmaAllocator);
 }
 
 void Renderer::destroy()
@@ -92,7 +103,7 @@ void Renderer::destroy()
 	glfwTerminate();
 }
 
-void Renderer::loop()
+void Renderer::loop(const Model &model)
 {
 	struct ModelSettings
 	{
@@ -118,7 +129,7 @@ void Renderer::loop()
 	while (!glfwWindowShouldClose(window))
 	{
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		// float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
 		lastTime = currentTime;
 
 		glfwPollEvents();
@@ -304,9 +315,9 @@ void Renderer::initializeImGui()
 
 	ImGui_ImplVulkan_Init(&imGuiImplVulkanInitInfo, *renderPass);
 
-	CommandBuffer::beginSTC(commandBuffers[0]);
+	CommandBuffer::beginSTC(*commandBuffers[0]);
 	ImGui_ImplVulkan_CreateFontsTexture(*commandBuffers[0]);
-	CommandBuffer::endSTC(commandBuffers[0], queue);
+	CommandBuffer::endSTC(*commandBuffers[0], *queue);
 
 	ImGui_ImplVulkan_DestroyFontUploadObjects();
 }
@@ -457,94 +468,7 @@ void Renderer::createDepthBuffers()
 		vk::ImageAspectFlagBits::eDepth);
 }
 
-void Renderer::uploadVertexData(const std::vector<Vertex> &vertices)
+Model Renderer::createModel(const char *path)
 {
-	VkDeviceSize memorySize = vertices.size() * sizeof(Vertex);
-
-	VkBufferCreateInfo bufferCreateInfo{};
-	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	bufferCreateInfo.size = memorySize;
-
-	VmaAllocationCreateInfo vmaAllocCreateInfo{};
-	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vmaAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	VkBuffer stagingBuffer;
-	VmaAllocation stagingBufferAllocation;
-	VmaAllocationInfo stagingBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocInfo);
-
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-	vmaAllocCreateInfo.flags = 0;
-
-	VkBuffer rawVertexBuffer;
-
-	VmaAllocationInfo vertexBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &rawVertexBuffer, &vertexBufferAllocation, &vertexBufferAllocInfo);
-
-	memcpy(stagingBufferAllocInfo.pMappedData, vertices.data(), memorySize);
-
-	CommandBuffer::beginSTC(commandBuffers[0]);
-
-	vk::BufferCopy bufferCopy;
-	bufferCopy.setSize(memorySize);
-
-	commandBuffers[0].copyBuffer(stagingBuffer, rawVertexBuffer, bufferCopy);
-
-	CommandBuffer::endSTC(commandBuffers[0], queue);
-
-	vmaDestroyBuffer(vmaAllocator, stagingBuffer, stagingBufferAllocation);
-
-	vertexBuffer = rawVertexBuffer;
-}
-
-void Renderer::uploadIndexData(const std::vector<uint16_t> &indices)
-{
-	VkDeviceSize memorySize = indices.size() * sizeof(uint16_t);
-
-	VkBufferCreateInfo bufferCreateInfo{};
-	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	bufferCreateInfo.size = memorySize;
-
-	VmaAllocationCreateInfo vmaAllocCreateInfo{};
-	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vmaAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	VkBuffer stagingBuffer;
-	VmaAllocation stagingBufferAllocation;
-	VmaAllocationInfo stagingBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocInfo);
-
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-
-	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-	vmaAllocCreateInfo.flags = 0;
-
-	VkBuffer rawIndexBuffer;
-
-	VmaAllocationInfo vertexBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &rawIndexBuffer, &indexBufferAllocation, &vertexBufferAllocInfo);
-
-	memcpy(stagingBufferAllocInfo.pMappedData, indices.data(), memorySize);
-
-	CommandBuffer::beginSTC(commandBuffers[0]);
-
-	vk::BufferCopy bufferCopy;
-	bufferCopy.setSize(memorySize);
-
-	commandBuffers[0].copyBuffer(stagingBuffer, rawIndexBuffer, bufferCopy);
-
-	CommandBuffer::endSTC(commandBuffers[0], queue);
-
-	vmaDestroyBuffer(vmaAllocator, stagingBuffer, stagingBufferAllocation);
-
-	indexBuffer = rawIndexBuffer;
-
-	numIndices = indices.size();
+	return Model(vmaAllocator, *queue, *commandBuffers[0], path);
 }

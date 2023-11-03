@@ -1,6 +1,6 @@
 #include "CommandBuffer.h"
 
-void CommandBuffer::beginSTC(vk::raii::CommandBuffer &buffer)
+void CommandBuffer::beginSTC(const vk::CommandBuffer &buffer)
 {
 	buffer.reset();
 
@@ -10,15 +10,13 @@ void CommandBuffer::beginSTC(vk::raii::CommandBuffer &buffer)
 	buffer.begin(commandBufferBeginInfo);
 }
 
-void CommandBuffer::endSTC(
-	vk::raii::CommandBuffer &buffer,
-	vk::raii::Queue &queue)
+void CommandBuffer::endSTC(const vk::CommandBuffer &buffer, const vk::Queue &queue)
 {
 	buffer.end();
 
 	vk::SubmitInfo submitInfo;
 	submitInfo.setCommandBufferCount(1);
-	submitInfo.setCommandBuffers(*buffer);
+	submitInfo.setCommandBuffers(buffer);
 
 	queue.submit(submitInfo);
 	queue.waitIdle();
