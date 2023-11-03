@@ -2,53 +2,51 @@
 
 #include <iostream>
 
-namespace pbr {
+namespace pbr
+{
 	void Frame::begin(
-			vk::raii::CommandBuffer &commandBuffer,
-			vk::raii::Pipeline &pipeline,
-			vk::raii::PipelineLayout &pipelineLayout,
-			vk::raii::Buffer &vertexBuffer,
-			vk::raii::Buffer &indexBuffer,
-			std::vector<vk::DescriptorSet> &descriptorSets
-	) {
+		vk::raii::CommandBuffer &commandBuffer,
+		vk::raii::Pipeline &pipeline,
+		vk::raii::PipelineLayout &pipelineLayout,
+		vk::Buffer &vertexBuffer,
+		vk::Buffer &indexBuffer,
+		std::vector<vk::DescriptorSet> &descriptorSets)
+	{
 		commandBuffer.reset();
 		commandBuffer.begin({});
 
 		commandBuffer.bindPipeline(
-				vk::PipelineBindPoint::eGraphics,
-				*pipeline
-		);
+			vk::PipelineBindPoint::eGraphics,
+			*pipeline);
 		commandBuffer.bindVertexBuffers(
-				0,
-				*vertexBuffer,
-				vk::DeviceSize{0}
-		);
+			0,
+			vertexBuffer,
+			vk::DeviceSize{0});
 		commandBuffer.bindIndexBuffer(
-				*indexBuffer,
-				0,
-				vk::IndexType::eUint16
-		);
+			indexBuffer,
+			0,
+			vk::IndexType::eUint16);
 		commandBuffer.bindDescriptorSets(
-				vk::PipelineBindPoint::eGraphics,
-				*pipelineLayout,
-				0,
-				descriptorSets,
-				nullptr
-		);
+			vk::PipelineBindPoint::eGraphics,
+			*pipelineLayout,
+			0,
+			descriptorSets,
+			nullptr);
 	}
 
-	void Frame::end(vk::raii::CommandBuffer &commandBuffer) {
+	void Frame::end(vk::raii::CommandBuffer &commandBuffer)
+	{
 		commandBuffer.end();
 	}
 
 	void Frame::beginRenderPass(
-			vk::raii::CommandBuffer &commandBuffer,
-			vk::raii::RenderPass &renderPass,
-			vk::raii::Framebuffer &frameBuffer,
-			std::vector<vk::ClearValue> &clearValues,
-			vk::Rect2D renderArea,
-			vk::SubpassContents subPassContents
-	) {
+		vk::raii::CommandBuffer &commandBuffer,
+		vk::raii::RenderPass &renderPass,
+		vk::raii::Framebuffer &frameBuffer,
+		std::vector<vk::ClearValue> &clearValues,
+		vk::Rect2D renderArea,
+		vk::SubpassContents subPassContents)
+	{
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.setRenderArea(renderArea);
 		renderPassBeginInfo.setRenderPass(*renderPass);
@@ -58,48 +56,43 @@ namespace pbr {
 		renderPassBeginInfo.setClearValueCount(clearValues.size());
 
 		commandBuffer.beginRenderPass(
-				renderPassBeginInfo,
-				subPassContents
-		);
+			renderPassBeginInfo,
+			subPassContents);
 	}
 
-	void Frame::endRenderPass(vk::raii::CommandBuffer &commandBuffer) {
+	void Frame::endRenderPass(vk::raii::CommandBuffer &commandBuffer)
+	{
 		commandBuffer.endRenderPass();
 	}
 
 	void Frame::draw(
-			vk::raii::CommandBuffer &commandBuffer,
-			vk::Rect2D renderArea,
-			int vertexCount
-	) {
+		vk::raii::CommandBuffer &commandBuffer,
+		vk::Rect2D renderArea,
+		int vertexCount)
+	{
 		vk::Viewport viewport{
-				static_cast<float>(renderArea.offset.x),
-				static_cast<float>(renderArea.extent.height),
-				static_cast<float>(renderArea.extent.width),
-				-static_cast<float>(renderArea.extent.height),
-				0,
-				1
-		};
+			static_cast<float>(renderArea.offset.x),
+			static_cast<float>(renderArea.extent.height),
+			static_cast<float>(renderArea.extent.width),
+			-static_cast<float>(renderArea.extent.height),
+			0,
+			1};
 
 		commandBuffer.setScissor(
-				0,
-				renderArea
-		);
+			0,
+			renderArea);
 		commandBuffer.setViewport(
-				0,
-				viewport
-		);
+			0,
+			viewport);
 		commandBuffer.drawIndexed(
-				vertexCount,
-				1,
-				0,
-				0,
-				0
-		);
+			vertexCount,
+			1,
+			0,
+			0,
+			0);
 		ImGui::Render();
 		ImGui_ImplVulkan_RenderDrawData(
-				ImGui::GetDrawData(),
-				*commandBuffer
-		);
+			ImGui::GetDrawData(),
+			*commandBuffer);
 	}
 } // pbr

@@ -6,33 +6,32 @@
 
 #include <imgui/backends/imgui_impl_vulkan.h>
 
-namespace pbr {
-	class Frame {
+namespace pbr
+{
+	class Frame
+	{
 	public:
 		static void begin(
-				vk::raii::CommandBuffer &commandBuffer,
-				vk::raii::Pipeline &pipeline,
-				vk::raii::PipelineLayout &pipelineLayout,
-				vk::raii::Buffer &vertexBuffer,
-				vk::raii::Buffer &indexBuffer,
-				std::vector<vk::DescriptorSet> &descriptorSets
-		);
+			vk::raii::CommandBuffer &commandBuffer,
+			vk::raii::Pipeline &pipeline,
+			vk::raii::PipelineLayout &pipelineLayout,
+			vk::Buffer &vertexBuffer,
+			vk::Buffer &indexBuffer,
+			std::vector<vk::DescriptorSet> &descriptorSets);
 		static void end(vk::raii::CommandBuffer &commandBuffer);
 		static void beginRenderPass(
-				vk::raii::CommandBuffer &commandBuffer,
-				vk::raii::RenderPass &renderPass,
-				vk::raii::Framebuffer &frameBuffer,
-				std::vector<vk::ClearValue> &clearValues,
-				vk::Rect2D renderArea,
-				vk::SubpassContents subPassContents = vk::SubpassContents::eInline
-		);
+			vk::raii::CommandBuffer &commandBuffer,
+			vk::raii::RenderPass &renderPass,
+			vk::raii::Framebuffer &frameBuffer,
+			std::vector<vk::ClearValue> &clearValues,
+			vk::Rect2D renderArea,
+			vk::SubpassContents subPassContents = vk::SubpassContents::eInline);
 		static void endRenderPass(vk::raii::CommandBuffer &commandBuffer);
 		static void draw(
-				vk::raii::CommandBuffer &commandBuffer,
-				vk::Rect2D renderArea,
-				int vertexCount
-		);
+			vk::raii::CommandBuffer &commandBuffer,
+			vk::Rect2D renderArea,
+			int vertexCount);
 	};
 } // pbr
 
-#endif //VK_PBR_RENDERER_FRAME_H
+#endif // VK_PBR_RENDERER_FRAME_H

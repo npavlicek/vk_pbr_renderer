@@ -10,23 +10,26 @@
 
 #include <string>
 
-class Texture {
+class Texture
+{
 public:
+	Texture() = delete;
 	Texture(
-			vk::raii::Device &device,
-			vk::raii::PhysicalDevice &physicalDevice,
-			vk::raii::CommandBuffer &commandBuffer,
-			vk::raii::Queue &queue,
-			const std::string &path
-	);
+		vk::raii::Device &device,
+		vk::raii::PhysicalDevice &physicalDevice,
+		vk::raii::CommandBuffer &commandBuffer,
+		vk::raii::Queue &queue,
+		const std::string &path);
 	Texture(const Texture &other) = delete;
 	Texture(const Texture &&other) = delete;
 
-	vk::ImageView getImageView() {
+	vk::ImageView getImageView() const
+	{
 		return **imageView;
 	}
 
-	vk::Sampler getSampler() {
+	vk::Sampler getSampler() const
+	{
 		return **imageSampler;
 	}
 
@@ -40,18 +43,15 @@ private:
 	vk::DeviceSize imageSize;
 
 	void createSampler(
-			vk::raii::Device &device,
-			float maxAnisotropy
-	);
+		vk::raii::Device &device,
+		float maxAnisotropy);
 	void copyBufferToImage(
-			vk::raii::CommandBuffer &buffer,
-			vk::raii::Buffer &stagingBuffer
-	);
+		vk::raii::CommandBuffer &buffer,
+		vk::raii::Buffer &stagingBuffer);
 	void transitionImage(
-			vk::raii::CommandBuffer &buffer,
-			vk::ImageLayout oldLayout,
-			vk::ImageLayout newLayout
-	);
+		vk::raii::CommandBuffer &buffer,
+		vk::ImageLayout oldLayout,
+		vk::ImageLayout newLayout);
 };
 
-#endif //VK_PBR_RENDERER_TEXTURE_H
+#endif // VK_PBR_RENDERER_TEXTURE_H

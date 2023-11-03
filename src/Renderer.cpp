@@ -2,8 +2,7 @@
 
 Renderer::Renderer(GLFWwindow *window)
 {
-	// TODO: determine based on surface capabilities
-	int maxFramesInFlight = 2;
+	this->window = window;
 
 	context = vk::raii::Context{};
 
@@ -27,12 +26,13 @@ Renderer::Renderer(GLFWwindow *window)
 	device = util::createDevice(physicalDevice, queueFamilyGraphicsIndex);
 	queue = device.getQueue(queueFamilyGraphicsIndex, 0);
 	commandPool = util::createCommandPool(device, queueFamilyGraphicsIndex);
-	commandBuffers = util::createCommandBuffers(device, commandPool, maxFramesInFlight);
+	commandBuffers = util::createCommandBuffers(device, commandPool, framesInFlight);
 
-	VmaAllocatorCreateInfo vmaCreateInfo;
+	VmaAllocatorCreateInfo vmaCreateInfo{};
 	vmaCreateInfo.device = *device;
 	vmaCreateInfo.instance = *instance;
 	vmaCreateInfo.physicalDevice = *physicalDevice;
+	vmaCreateInfo.vulkanApiVersion = context.enumerateInstanceVersion();
 	vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator);
 
 	surface = util::createSurface(instance, window);
@@ -49,6 +49,368 @@ Renderer::Renderer(GLFWwindow *window)
 		descriptorSetLayout) = util::createPipeline(device, renderPass, shaderModules);
 
 	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews, swapChainSurfaceCapabilities);
+
+	createUniformBuffers();
+	createDescriptorObjects();
+	createSyncObjects();
+	initializeImGui();
+
+	clearColorValue = vk::ClearColorValue{
+		0.f,
+		0.f,
+		0.f,
+		1.f};
+	clearDepthValue = vk::ClearDepthStencilValue{
+		1.f,
+		0};
+	clearValues.push_back(clearColorValue);
+	clearValues.push_back(clearDepthValue);
+	renderArea = vk::Rect2D{
+		{0,
+		 0},
+		swapChainSurfaceCapabilities.currentExtent};
+
+	ubo.model = glm::mat4(1.f);
+	ubo.projection = glm::perspective(
+		45.f,
+		swapChainSurfaceCapabilities.currentExtent.width * 1.f / swapChainSurfaceCapabilities.currentExtent.height,
+		0.1f,
+		100.f);
+}
+
+Renderer::~Renderer()
+{
+	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
+}
+
+void Renderer::destroy()
+{
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext(imGuiContext);
+
+	glfwTerminate();
+}
+
+void Renderer::loop()
+{
+	struct ModelSettings
+	{
+		struct
+		{
+			float x, y, z;
+		} pos{
+			0.f,
+			5.f,
+			2.f};
+		struct
+		{
+			float x, y, z;
+		} rotation{};
+	} modelSettings{};
+
+	commandPool.reset();
+
+	auto lastTime = std::chrono::high_resolution_clock::now();
+
+	int currentFrame = 0;
+
+	while (!glfwWindowShouldClose(window))
+	{
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		lastTime = currentTime;
+
+		glfwPollEvents();
+
+		res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
+		device.resetFences(*inFlightFences[currentFrame]);
+
+		// IMGUI NEW FRAME
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::Begin("Settings");
+		ImGui::Text("Model Rotation");
+		ImGui::SliderFloat(
+			"World X",
+			&modelSettings.rotation.x,
+			-360.f,
+			360.f);
+		ImGui::SliderFloat(
+			"World Y",
+			&modelSettings.rotation.y,
+			-360.f,
+			360.f);
+		ImGui::SliderFloat(
+			"World Z",
+			&modelSettings.rotation.z,
+			-360.f,
+			360.f);
+		ImGui::Text("Camera Position");
+		ImGui::SliderFloat(
+			"Camera X",
+			&modelSettings.pos.x,
+			-50.f,
+			50.f);
+		ImGui::SliderFloat(
+			"Camera Y",
+			&modelSettings.pos.y,
+			-50.f,
+			50.f);
+		ImGui::SliderFloat(
+			"Camera Z",
+			&modelSettings.pos.z,
+			-50.f,
+			50.f);
+		bool resetPressed = ImGui::Button(
+			"Reset",
+			{100.f,
+			 25.f});
+		ImGui::End();
+
+		// IMGUI END NEW FRAME
+
+		// Update model matrix
+
+		ubo.view = glm::lookAt(
+			{modelSettings.pos.x,
+			 modelSettings.pos.y,
+			 modelSettings.pos.z},
+			glm::vec3{},
+			{0,
+			 -1.f,
+			 0});
+
+		if (resetPressed)
+		{
+			ubo.model = glm::identity<glm::mat4>();
+			modelSettings.rotation.x = 0;
+			modelSettings.rotation.y = 0;
+			modelSettings.rotation.z = 0;
+		}
+		else
+		{
+			glm::vec3 xRot = glm::vec3(
+								 1.f,
+								 0.f,
+								 0.f) *
+							 glm::radians(modelSettings.rotation.x);
+			glm::vec3 yRot = glm::vec3(
+								 0.f,
+								 1.f,
+								 0.f) *
+							 glm::radians(modelSettings.rotation.y);
+			glm::vec3 zRot = glm::vec3(
+								 0.f,
+								 0.f,
+								 1.f) *
+							 glm::radians(modelSettings.rotation.z);
+			glm::vec3 finalRot = xRot + yRot + zRot;
+			if (glm::length(finalRot) > 0.f)
+			{
+				ubo.model = glm::rotate(
+					glm::identity<glm::mat4>(),
+					glm::length(finalRot),
+					glm::normalize(finalRot));
+			}
+			else
+			{
+				ubo.model = glm::mat4(1.f);
+			}
+		}
+
+		uploadUniformData(ubo, currentFrame);
+
+		// end update model matrix
+
+		uint32_t imageIndex;
+		std::tie(
+			res,
+			imageIndex) = swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
+
+		pbr::Frame::begin(
+			commandBuffers.at(currentFrame),
+			pipeline,
+			pipelineLayout,
+			vertexBuffer,
+			indexBuffer,
+			descriptorSets);
+		pbr::Frame::beginRenderPass(
+			commandBuffers.at(currentFrame),
+			renderPass,
+			frameBuffers[imageIndex],
+			clearValues,
+			renderArea);
+		pbr::Frame::draw(
+			commandBuffers.at(currentFrame),
+			renderArea,
+			numIndices);
+		pbr::Frame::endRenderPass(commandBuffers.at(currentFrame));
+		pbr::Frame::end(commandBuffers.at(currentFrame));
+
+		std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
+
+		vk::SubmitInfo submitInfo;
+		submitInfo.setWaitSemaphoreCount(1);
+		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
+		submitInfo.setWaitDstStageMask(pipelineStageFlags);
+		submitInfo.setCommandBufferCount(1);
+		submitInfo.setCommandBuffers(*commandBuffers.at(currentFrame));
+		submitInfo.setSignalSemaphoreCount(1);
+		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
+
+		queue.submit(
+			submitInfo,
+			*inFlightFences[currentFrame]);
+
+		vk::PresentInfoKHR presentInfo;
+		presentInfo.setSwapchainCount(1);
+		presentInfo.setSwapchains(*swapChain);
+		presentInfo.setImageIndices(imageIndex);
+		presentInfo.setWaitSemaphoreCount(1);
+		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
+
+		res = queue.presentKHR(presentInfo);
+
+		currentFrame = (currentFrame + 1) % framesInFlight;
+	}
+	device.waitIdle();
+}
+
+void Renderer::initializeImGui()
+{
+	imGuiContext = ImGui::CreateContext();
+
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+
+	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{
+		*instance,
+		*physicalDevice,
+		*device,
+		static_cast<uint32_t>(queueFamilyGraphicsIndex),
+		*queue,
+		*pipelineCache,
+		*descriptorPool,
+		0,
+		swapChainSurfaceCapabilities.minImageCount,
+		swapChainSurfaceCapabilities.minImageCount,
+		static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
+		false,
+		static_cast<VkFormat>(swapChainFormat.format),
+		nullptr,
+		nullptr};
+
+	ImGui_ImplVulkan_Init(&imGuiImplVulkanInitInfo, *renderPass);
+
+	CommandBuffer::beginSTC(commandBuffers[0]);
+	ImGui_ImplVulkan_CreateFontsTexture(*commandBuffers[0]);
+	CommandBuffer::endSTC(commandBuffers[0], queue);
+
+	ImGui_ImplVulkan_DestroyFontUploadObjects();
+}
+
+Texture Renderer::createTexture(const char *path)
+{
+	return Texture{
+		device,
+		physicalDevice,
+		commandBuffers[0],
+		queue,
+		path};
+}
+
+void Renderer::updateDescriptorSets(const Texture &tex)
+{
+	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		vk::DescriptorBufferInfo descriptorBufferInfo;
+		descriptorBufferInfo.setBuffer(uniformBuffers[i]);
+		descriptorBufferInfo.setOffset(0);
+		descriptorBufferInfo.setRange(sizeof(UniformData));
+
+		writeDescriptorSets.at(i).setBufferInfo(descriptorBufferInfo);
+		writeDescriptorSets.at(i).setDescriptorCount(1);
+		writeDescriptorSets.at(i).setDescriptorType(vk::DescriptorType::eUniformBuffer);
+		writeDescriptorSets.at(i).setDstArrayElement(0);
+		writeDescriptorSets.at(i).setDstBinding(0);
+		writeDescriptorSets.at(i).setDstSet(descriptorSets[0]);
+	}
+
+	vk::DescriptorImageInfo descriptorImageInfo;
+	descriptorImageInfo.setImageView(tex.getImageView());
+	descriptorImageInfo.setSampler(tex.getSampler());
+	descriptorImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+
+	writeDescriptorSets.at(2).setImageInfo(descriptorImageInfo);
+	writeDescriptorSets.at(2).setDescriptorCount(1);
+	writeDescriptorSets.at(2).setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+	writeDescriptorSets.at(2).setDstArrayElement(0);
+	writeDescriptorSets.at(2).setDstBinding(1);
+	writeDescriptorSets.at(2).setDstSet(descriptorSets[0]);
+
+	device.updateDescriptorSets(writeDescriptorSets, nullptr);
+}
+
+void Renderer::createDescriptorObjects()
+{
+	descriptorPool = util::createDescriptorPool(device);
+	auto ds = util::createDescriptorSets(device, descriptorPool, descriptorSetLayout, 1);
+
+	auto &descriptorSetRef = descriptorSets;
+
+	std::for_each(ds.begin(), ds.end(),
+				  [&descriptorSetRef](vk::raii::DescriptorSet &current) mutable
+				  {
+					  descriptorSetRef.push_back(current.release());
+				  });
+}
+
+void Renderer::createSyncObjects()
+{
+	vk::FenceCreateInfo fenceCreateInfo;
+	fenceCreateInfo.setFlags(vk::FenceCreateFlagBits::eSignaled);
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		imageAvailableSemaphores.push_back(device.createSemaphore({}));
+		renderFinishedSemaphores.push_back(device.createSemaphore({}));
+		inFlightFences.push_back(device.createFence(fenceCreateInfo));
+	}
+}
+
+void Renderer::uploadUniformData(const UniformData &uniformData, int frame)
+{
+	memcpy(uniformBufferPtr[frame], &uniformData, sizeof(UniformData));
+}
+
+void Renderer::createUniformBuffers()
+{
+	VkBufferCreateInfo bufferCreateInfo{};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.size = sizeof(UniformData);
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	VmaAllocationCreateInfo allocationCreateInfo{};
+	allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		VkBuffer buffer;
+		VmaAllocation allocation;
+		void *bufferPtr;
+		vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &allocationCreateInfo, &buffer, &allocation, nullptr);
+		vmaMapMemory(vmaAllocator, allocation, &bufferPtr);
+
+		uniformBuffers.push_back(buffer);
+		uniformBufferPtr.push_back(bufferPtr);
+		uniformBufferAllocations.push_back(allocation);
+	}
 }
 
 void Renderer::createSwapChain()
@@ -84,8 +446,8 @@ void Renderer::createDepthBuffers()
 												  vk::ImageType::e2D,
 												  vk::MemoryPropertyFlagBits::eDeviceLocal);
 		depthImageMemorys.push_back(std::move(depthImageMemory));
-		depthImages.push_back(std::move(depthImage));
 		depthImagesTemp.push_back(*depthImage);
+		depthImages.push_back(std::move(depthImage));
 	}
 
 	depthImageViews = util::createImageViews(
@@ -95,19 +457,19 @@ void Renderer::createDepthBuffers()
 		vk::ImageAspectFlagBits::eDepth);
 }
 
-void Renderer::uploadVertexData(std::vector<Vertex> vertices)
+void Renderer::uploadVertexData(const std::vector<Vertex> &vertices)
 {
 	VkDeviceSize memorySize = vertices.size() * sizeof(Vertex);
 
-	VkBufferCreateInfo bufferCreateInfo;
+	VkBufferCreateInfo bufferCreateInfo{};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	bufferCreateInfo.size = memorySize;
 
-	VmaAllocationCreateInfo vmaAllocCreateInfo;
+	VmaAllocationCreateInfo vmaAllocCreateInfo{};
 	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vmaAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	vmaAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingBufferAllocation;
@@ -119,10 +481,10 @@ void Renderer::uploadVertexData(std::vector<Vertex> vertices)
 	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	vmaAllocCreateInfo.flags = 0;
 
-	VkBuffer vertexBuffer;
-	VmaAllocation vertexBufferAllocation;
+	VkBuffer rawVertexBuffer;
+
 	VmaAllocationInfo vertexBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &vertexBuffer, &vertexBufferAllocation, &vertexBufferAllocInfo);
+	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &rawVertexBuffer, &vertexBufferAllocation, &vertexBufferAllocInfo);
 
 	memcpy(stagingBufferAllocInfo.pMappedData, vertices.data(), memorySize);
 
@@ -131,7 +493,58 @@ void Renderer::uploadVertexData(std::vector<Vertex> vertices)
 	vk::BufferCopy bufferCopy;
 	bufferCopy.setSize(memorySize);
 
-	commandBuffers[0].copyBuffer(stagingBuffer, vertexBuffer, bufferCopy);
+	commandBuffers[0].copyBuffer(stagingBuffer, rawVertexBuffer, bufferCopy);
 
 	CommandBuffer::endSTC(commandBuffers[0], queue);
+
+	vmaDestroyBuffer(vmaAllocator, stagingBuffer, stagingBufferAllocation);
+
+	vertexBuffer = rawVertexBuffer;
+}
+
+void Renderer::uploadIndexData(const std::vector<uint16_t> &indices)
+{
+	VkDeviceSize memorySize = indices.size() * sizeof(uint16_t);
+
+	VkBufferCreateInfo bufferCreateInfo{};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.size = memorySize;
+
+	VmaAllocationCreateInfo vmaAllocCreateInfo{};
+	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	vmaAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VkBuffer stagingBuffer;
+	VmaAllocation stagingBufferAllocation;
+	VmaAllocationInfo stagingBufferAllocInfo;
+	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocInfo);
+
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	vmaAllocCreateInfo.flags = 0;
+
+	VkBuffer rawIndexBuffer;
+
+	VmaAllocationInfo vertexBufferAllocInfo;
+	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &vmaAllocCreateInfo, &rawIndexBuffer, &indexBufferAllocation, &vertexBufferAllocInfo);
+
+	memcpy(stagingBufferAllocInfo.pMappedData, indices.data(), memorySize);
+
+	CommandBuffer::beginSTC(commandBuffers[0]);
+
+	vk::BufferCopy bufferCopy;
+	bufferCopy.setSize(memorySize);
+
+	commandBuffers[0].copyBuffer(stagingBuffer, rawIndexBuffer, bufferCopy);
+
+	CommandBuffer::endSTC(commandBuffers[0], queue);
+
+	vmaDestroyBuffer(vmaAllocator, stagingBuffer, stagingBufferAllocation);
+
+	indexBuffer = rawIndexBuffer;
+
+	numIndices = indices.size();
 }

@@ -2,6 +2,8 @@
 
 void CommandBuffer::beginSTC(vk::raii::CommandBuffer &buffer)
 {
+	buffer.reset();
+
 	vk::CommandBufferBeginInfo commandBufferBeginInfo;
 	commandBufferBeginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
