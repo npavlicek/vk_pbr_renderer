@@ -119,6 +119,5 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	commandBuffer.copyBuffer(stagingBuffer, indexBuffer, bufferCopy);
 	CommandBuffer::endSTC(commandBuffer, queue);
 
-	vmaUnmapMemory(vmaAllocator, stagingBufferAllocation);
 	vmaDestroyBuffer(vmaAllocator, stagingBuffer, stagingBufferAllocation);
 }

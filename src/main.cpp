@@ -71,7 +71,12 @@ int main()
 
 	renderer.updateDescriptorSets(texture);
 
-	renderer.loop(model);
+	std::vector<Model> models;
+	models.push_back(std::move(model));
+
+	renderer.loop(models);
+
+	renderer.destroyModel(models.at(0));
 
 	renderer.destroy();
 

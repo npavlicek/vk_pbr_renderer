@@ -76,14 +76,12 @@ Renderer::Renderer(GLFWwindow *window)
 		swapChainSurfaceCapabilities.currentExtent.width * 1.f / swapChainSurfaceCapabilities.currentExtent.height,
 		0.1f,
 		100.f);
+	ubo.view = glm::lookAt(glm::vec3{0.f, -5.f, 3.f}, glm::vec3{0.f, 0.f, 0.f}, glm::vec3(0.f, -1.f, 0.f));
 }
 
 Renderer::~Renderer()
 {
 	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
-
-	vmaDestroyBuffer(vmaAllocator, vertexBuffer, vertexBufferAllocation);
-	vmaDestroyBuffer(vmaAllocator, indexBuffer, indexBufferAllocation);
 
 	for (int i = 0; i < static_cast<int>(uniformBuffers.size()); i++)
 	{
@@ -103,7 +101,12 @@ void Renderer::destroy()
 	glfwTerminate();
 }
 
-void Renderer::loop(const Model &model)
+void Renderer::destroyModel(Model &model)
+{
+	model.destroy(vmaAllocator);
+}
+
+void Renderer::loop(const std::vector<Model> &models)
 {
 	struct ModelSettings
 	{
@@ -183,59 +186,6 @@ void Renderer::loop(const Model &model)
 
 		// IMGUI END NEW FRAME
 
-		// Update model matrix
-
-		ubo.view = glm::lookAt(
-			{modelSettings.pos.x,
-			 modelSettings.pos.y,
-			 modelSettings.pos.z},
-			glm::vec3{},
-			{0,
-			 -1.f,
-			 0});
-
-		if (resetPressed)
-		{
-			ubo.model = glm::identity<glm::mat4>();
-			modelSettings.rotation.x = 0;
-			modelSettings.rotation.y = 0;
-			modelSettings.rotation.z = 0;
-		}
-		else
-		{
-			glm::vec3 xRot = glm::vec3(
-								 1.f,
-								 0.f,
-								 0.f) *
-							 glm::radians(modelSettings.rotation.x);
-			glm::vec3 yRot = glm::vec3(
-								 0.f,
-								 1.f,
-								 0.f) *
-							 glm::radians(modelSettings.rotation.y);
-			glm::vec3 zRot = glm::vec3(
-								 0.f,
-								 0.f,
-								 1.f) *
-							 glm::radians(modelSettings.rotation.z);
-			glm::vec3 finalRot = xRot + yRot + zRot;
-			if (glm::length(finalRot) > 0.f)
-			{
-				ubo.model = glm::rotate(
-					glm::identity<glm::mat4>(),
-					glm::length(finalRot),
-					glm::normalize(finalRot));
-			}
-			else
-			{
-				ubo.model = glm::mat4(1.f);
-			}
-		}
-
-		uploadUniformData(ubo, currentFrame);
-
-		// end update model matrix
-
 		uint32_t imageIndex;
 		std::tie(
 			res,
@@ -254,10 +204,28 @@ void Renderer::loop(const Model &model)
 			frameBuffers[imageIndex],
 			clearValues,
 			renderArea);
-		pbr::Frame::draw(
-			commandBuffers.at(currentFrame),
-			renderArea,
-			numIndices);
+
+		vk::Viewport viewport{
+			static_cast<float>(renderArea.offset.x),
+			static_cast<float>(renderArea.extent.height),
+			static_cast<float>(renderArea.extent.width),
+			-static_cast<float>(renderArea.extent.height),
+			0,
+			1};
+
+		commandBuffers[currentFrame].setScissor(0, renderArea);
+		commandBuffers[currentFrame].setViewport(0, viewport);
+
+		for (const auto &model : models)
+		{
+			ubo.model = model.getModel();
+			uploadUniformData(ubo, currentFrame);
+			model.draw(*commandBuffers[currentFrame]);
+		}
+
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffers[currentFrame]);
+
 		pbr::Frame::endRenderPass(commandBuffers.at(currentFrame));
 		pbr::Frame::end(commandBuffers.at(currentFrame));
 

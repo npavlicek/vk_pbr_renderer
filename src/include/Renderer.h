@@ -39,8 +39,9 @@ public:
 	void updateDescriptorSets(const Texture &tex);
 	Texture createTexture(const char *path);
 	Model createModel(const char *path);
-	void loop(const Model &model);
+	void loop(const std::vector<Model> &models);
 	void destroy();
+	void destroyModel(Model &model);
 
 private:
 	// TODO: Convert back to non raii vk handles
