@@ -59,6 +59,7 @@ int main()
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
 	Model model = renderer.createModel("models/cow.obj");
+	Model model2 = renderer.createModel("models/cube.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -71,12 +72,17 @@ int main()
 
 	renderer.updateDescriptorSets(texture);
 
+	glm::mat4 model2Pos = glm::translate(glm::vec3(10.f, 0.f, 0.f));
+	model2.setModel(model2Pos);
+
 	std::vector<Model> models;
 	models.push_back(std::move(model));
+	models.push_back(std::move(model2));
 
 	renderer.loop(models);
 
 	renderer.destroyModel(models.at(0));
+	renderer.destroyModel(models.at(1));
 
 	renderer.destroy();
 

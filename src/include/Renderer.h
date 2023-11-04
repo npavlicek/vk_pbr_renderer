@@ -16,6 +16,7 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/common.hpp>
+// #include <glm/gtx/string_cast.hpp>
 
 #include <vma/vk_mem_alloc.h>
 
@@ -25,6 +26,9 @@ struct UniformData
 	glm::mat4 view;
 	glm::mat4 projection;
 };
+
+// FIXME: im not sure why this is required, i need to figure out how to fix the error i get without it.
+class Texture;
 
 class Renderer
 {
@@ -87,6 +91,7 @@ private:
 	VmaAllocation indexBufferAllocation;
 	vk::Buffer indexBuffer;
 
+	// TODO: delete the unused uniform buffers, using push constants instead
 	std::vector<VmaAllocation> uniformBufferAllocations;
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<void *> uniformBufferPtr;

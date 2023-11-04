@@ -12,6 +12,7 @@
 #include "Mesh.h"
 #include "Validation.h"
 #include "VkErrorHandling.h"
+#include "Renderer.h"
 
 namespace util
 {
@@ -77,10 +78,6 @@ namespace util
 		std::vector<vk::raii::ImageView> &depthImageViews,
 		vk::SurfaceCapabilitiesKHR surfaceCapabilities);
 	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device);
-	void uploadVertexData(
-		vk::raii::Device &device,
-		vk::raii::DeviceMemory &stagingBufferMemory,
-		const std::vector<Vertex> &vertices);
 	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
 		vk::raii::Device &device,
 		vk::raii::PhysicalDevice &physicalDevice,
@@ -90,10 +87,6 @@ namespace util
 		vk::Extent3D extent,
 		vk::ImageType imageType,
 		vk::MemoryPropertyFlags memoryPropertyFlags);
-	void uploadIndexData(
-		vk::raii::Device &device,
-		vk::raii::DeviceMemory &stagingBufferMemory,
-		const std::vector<uint16_t> &indices);
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
 		vk::raii::Device &device,
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,

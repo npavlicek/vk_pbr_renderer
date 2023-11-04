@@ -9,10 +9,10 @@
 class Model
 {
 public:
-	Model() = delete;
+	constexpr Model() = delete;
 	Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path);
-	Model(const Model &) = delete;
-	Model &operator=(const Model &) = delete;
+	constexpr Model(const Model &) = delete;
+	constexpr Model &operator=(const Model &) = delete;
 	constexpr Model(Model &&) = default;
 
 	const std::vector<Mesh> &getMeshes() const
@@ -23,6 +23,11 @@ public:
 	const glm::mat4 &getModel() const
 	{
 		return model;
+	}
+
+	void setModel(const glm::mat4 model)
+	{
+		this->model = model;
 	}
 
 	void draw(const vk::CommandBuffer &commandBuffer) const;

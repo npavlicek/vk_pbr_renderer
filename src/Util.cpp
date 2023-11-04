@@ -485,10 +485,18 @@ namespace util
 			device,
 			descriptorSetLayoutCreateInfo};
 
+		// Push Constants
+		vk::PushConstantRange pushConstants;
+		pushConstants.setOffset(0);
+		pushConstants.setSize(sizeof(UniformData));
+		pushConstants.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
 		// Pipeline Layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
 		pipelineLayoutCreateInfo.setSetLayoutCount(1);
 		pipelineLayoutCreateInfo.setSetLayouts(*descriptorSetLayout);
+		pipelineLayoutCreateInfo.setPushConstantRanges(pushConstants);
+		pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
 
 		vk::raii::PipelineLayout pipelineLayout(
 			device,
@@ -787,37 +795,5 @@ namespace util
 		return {
 			std::move(image),
 			std::move(imageMemory)};
-	}
-
-	void uploadVertexData(
-		vk::raii::Device &device,
-		vk::raii::DeviceMemory &stagingBufferMemory,
-		const std::vector<Vertex> &vertices)
-	{
-		const auto bufferSize = sizeof(vertices[0]) * vertices.size();
-		void *data = stagingBufferMemory.mapMemory(
-			0,
-			bufferSize);
-		memcpy(
-			data,
-			vertices.data(),
-			bufferSize);
-		stagingBufferMemory.unmapMemory();
-	}
-
-	void uploadIndexData(
-		vk::raii::Device &device,
-		vk::raii::DeviceMemory &stagingBufferMemory,
-		const std::vector<uint16_t> &indices)
-	{
-		const auto bufferSize = sizeof(indices[0]) * indices.size();
-		void *data = stagingBufferMemory.mapMemory(
-			0,
-			bufferSize);
-		memcpy(
-			data,
-			indices.data(),
-			bufferSize);
-		stagingBufferMemory.unmapMemory();
 	}
 } // pbr

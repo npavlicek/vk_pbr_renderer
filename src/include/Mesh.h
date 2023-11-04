@@ -81,10 +81,16 @@ namespace std
 class Mesh
 {
 public:
-	Mesh() = delete;
+	constexpr Mesh() = delete;
 	Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib);
+	constexpr Mesh(const Mesh &) = delete;
+	constexpr Mesh &operator=(const Mesh &) = delete;
+	constexpr Mesh(Mesh &&) = default;
 
-	const std::vector<Vertex> &getVertices() const { return vertices; }
+	const std::vector<Vertex> &getVertices() const
+	{
+		return vertices;
+	}
 	const std::vector<uint16_t> &getIndices() const { return indices; }
 
 	void draw(const vk::CommandBuffer &commandBuffer) const;

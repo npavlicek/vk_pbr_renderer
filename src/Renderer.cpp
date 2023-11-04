@@ -186,6 +186,8 @@ void Renderer::loop(const std::vector<Model> &models)
 
 		// IMGUI END NEW FRAME
 
+		ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
+
 		uint32_t imageIndex;
 		std::tie(
 			res,
@@ -198,6 +200,7 @@ void Renderer::loop(const std::vector<Model> &models)
 			vertexBuffer,
 			indexBuffer,
 			descriptorSets);
+
 		pbr::Frame::beginRenderPass(
 			commandBuffers.at(currentFrame),
 			renderPass,
@@ -219,7 +222,7 @@ void Renderer::loop(const std::vector<Model> &models)
 		for (const auto &model : models)
 		{
 			ubo.model = model.getModel();
-			uploadUniformData(ubo, currentFrame);
+			vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
 			model.draw(*commandBuffers[currentFrame]);
 		}
 
