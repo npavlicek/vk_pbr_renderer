@@ -13,11 +13,11 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib)
 		vertex.pos[1] = attrib.vertices.at(3 * index.vertex_index + 1);
 		vertex.pos[2] = attrib.vertices.at(3 * index.vertex_index + 2);
 
-		// vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
-		// vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
-		// vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
+		vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
 
-		vertex.color = glm::vec3(0.5f);
+		// vertex.color = glm::vec3(0.5f);
 
 		vertex.texCoords = glm::vec2(0.f);
 

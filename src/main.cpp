@@ -59,7 +59,7 @@ int main()
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
 	Model model = renderer.createModel("models/cow.obj");
-	Model model2 = renderer.createModel("models/cube.obj");
+	Model model2 = renderer.createModel("models/teddybear.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -72,7 +72,8 @@ int main()
 
 	renderer.updateDescriptorSets(texture);
 
-	glm::mat4 model2Pos = glm::translate(glm::vec3(10.f, 0.f, 0.f));
+	glm::mat4 model2Pos = glm::translate(glm::vec3(15.f, 0.f, 0.f));
+	model2Pos = glm::scale(model2Pos, glm::vec3(0.25f));
 	model2.setModel(model2Pos);
 
 	std::vector<Model> models;
