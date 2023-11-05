@@ -81,6 +81,8 @@ Renderer::Renderer(GLFWwindow *window)
 
 Renderer::~Renderer()
 {
+	device.waitIdle();
+
 	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
 
 	for (int i = 0; i < static_cast<int>(uniformBuffers.size()); i++)
@@ -94,6 +96,8 @@ Renderer::~Renderer()
 
 void Renderer::destroy()
 {
+	device.waitIdle();
+
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext(imGuiContext);
@@ -103,162 +107,138 @@ void Renderer::destroy()
 
 void Renderer::destroyModel(Model &model)
 {
+	device.waitIdle();
+
 	model.destroy(vmaAllocator);
 }
 
-void Renderer::loop(const std::vector<Model> &models)
+void Renderer::resetCommandBuffers()
 {
-	struct ModelSettings
-	{
-		struct
-		{
-			float x, y, z;
-		} pos{
-			0.f,
-			5.f,
-			2.f};
-		struct
-		{
-			float x, y, z;
-		} rotation{};
-	} modelSettings{};
-
 	commandPool.reset();
+}
 
-	auto lastTime = std::chrono::high_resolution_clock::now();
+void Renderer::render(const std::vector<Model> &models)
+{
+	res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
+	device.resetFences(*inFlightFences[currentFrame]);
 
-	int currentFrame = 0;
+	// IMGUI NEW FRAME
 
-	while (!glfwWindowShouldClose(window))
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+	ImGui::Begin("Settings");
+	ImGui::Text("Model Rotation");
+	ImGui::SliderFloat(
+		"World X",
+		&modelSettings.rotation.x,
+		-360.f,
+		360.f);
+	ImGui::SliderFloat(
+		"World Y",
+		&modelSettings.rotation.y,
+		-360.f,
+		360.f);
+	ImGui::SliderFloat(
+		"World Z",
+		&modelSettings.rotation.z,
+		-360.f,
+		360.f);
+	ImGui::Text("Camera Position");
+	ImGui::SliderFloat(
+		"Camera X",
+		&modelSettings.pos.x,
+		-50.f,
+		50.f);
+	ImGui::SliderFloat(
+		"Camera Y",
+		&modelSettings.pos.y,
+		-50.f,
+		50.f);
+	ImGui::SliderFloat(
+		"Camera Z",
+		&modelSettings.pos.z,
+		-50.f,
+		50.f);
+	bool resetPressed = ImGui::Button(
+		"Reset",
+		{100.f,
+		 25.f});
+	ImGui::End();
+
+	// IMGUI END NEW FRAME
+
+	ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
+
+	uint32_t imageIndex;
+	std::tie(
+		res,
+		imageIndex) = swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
+
+	pbr::Frame::begin(
+		commandBuffers.at(currentFrame),
+		pipeline,
+		pipelineLayout,
+		vertexBuffer,
+		indexBuffer,
+		descriptorSets);
+
+	pbr::Frame::beginRenderPass(
+		commandBuffers.at(currentFrame),
+		renderPass,
+		frameBuffers[imageIndex],
+		clearValues,
+		renderArea);
+
+	vk::Viewport viewport{
+		static_cast<float>(renderArea.offset.x),
+		static_cast<float>(renderArea.extent.height),
+		static_cast<float>(renderArea.extent.width),
+		-static_cast<float>(renderArea.extent.height),
+		0,
+		1};
+
+	commandBuffers[currentFrame].setScissor(0, renderArea);
+	commandBuffers[currentFrame].setViewport(0, viewport);
+
+	for (const auto &model : models)
 	{
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		// float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
-		lastTime = currentTime;
-
-		glfwPollEvents();
-
-		res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
-		device.resetFences(*inFlightFences[currentFrame]);
-
-		// IMGUI NEW FRAME
-
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-		ImGui::Begin("Settings");
-		ImGui::Text("Model Rotation");
-		ImGui::SliderFloat(
-			"World X",
-			&modelSettings.rotation.x,
-			-360.f,
-			360.f);
-		ImGui::SliderFloat(
-			"World Y",
-			&modelSettings.rotation.y,
-			-360.f,
-			360.f);
-		ImGui::SliderFloat(
-			"World Z",
-			&modelSettings.rotation.z,
-			-360.f,
-			360.f);
-		ImGui::Text("Camera Position");
-		ImGui::SliderFloat(
-			"Camera X",
-			&modelSettings.pos.x,
-			-50.f,
-			50.f);
-		ImGui::SliderFloat(
-			"Camera Y",
-			&modelSettings.pos.y,
-			-50.f,
-			50.f);
-		ImGui::SliderFloat(
-			"Camera Z",
-			&modelSettings.pos.z,
-			-50.f,
-			50.f);
-		bool resetPressed = ImGui::Button(
-			"Reset",
-			{100.f,
-			 25.f});
-		ImGui::End();
-
-		// IMGUI END NEW FRAME
-
-		ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
-
-		uint32_t imageIndex;
-		std::tie(
-			res,
-			imageIndex) = swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
-
-		pbr::Frame::begin(
-			commandBuffers.at(currentFrame),
-			pipeline,
-			pipelineLayout,
-			vertexBuffer,
-			indexBuffer,
-			descriptorSets);
-
-		pbr::Frame::beginRenderPass(
-			commandBuffers.at(currentFrame),
-			renderPass,
-			frameBuffers[imageIndex],
-			clearValues,
-			renderArea);
-
-		vk::Viewport viewport{
-			static_cast<float>(renderArea.offset.x),
-			static_cast<float>(renderArea.extent.height),
-			static_cast<float>(renderArea.extent.width),
-			-static_cast<float>(renderArea.extent.height),
-			0,
-			1};
-
-		commandBuffers[currentFrame].setScissor(0, renderArea);
-		commandBuffers[currentFrame].setViewport(0, viewport);
-
-		for (const auto &model : models)
-		{
-			ubo.model = model.getModel();
-			vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
-			model.draw(*commandBuffers[currentFrame]);
-		}
-
-		ImGui::Render();
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffers[currentFrame]);
-
-		pbr::Frame::endRenderPass(commandBuffers.at(currentFrame));
-		pbr::Frame::end(commandBuffers.at(currentFrame));
-
-		std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
-
-		vk::SubmitInfo submitInfo;
-		submitInfo.setWaitSemaphoreCount(1);
-		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
-		submitInfo.setWaitDstStageMask(pipelineStageFlags);
-		submitInfo.setCommandBufferCount(1);
-		submitInfo.setCommandBuffers(*commandBuffers.at(currentFrame));
-		submitInfo.setSignalSemaphoreCount(1);
-		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
-
-		queue.submit(
-			submitInfo,
-			*inFlightFences[currentFrame]);
-
-		vk::PresentInfoKHR presentInfo;
-		presentInfo.setSwapchainCount(1);
-		presentInfo.setSwapchains(*swapChain);
-		presentInfo.setImageIndices(imageIndex);
-		presentInfo.setWaitSemaphoreCount(1);
-		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
-
-		res = queue.presentKHR(presentInfo);
-
-		currentFrame = (currentFrame + 1) % framesInFlight;
+		ubo.model = model.getModel();
+		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
+		model.draw(*commandBuffers[currentFrame]);
 	}
-	device.waitIdle();
+
+	ImGui::Render();
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffers[currentFrame]);
+
+	pbr::Frame::endRenderPass(commandBuffers.at(currentFrame));
+	pbr::Frame::end(commandBuffers.at(currentFrame));
+
+	std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
+
+	vk::SubmitInfo submitInfo;
+	submitInfo.setWaitSemaphoreCount(1);
+	submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
+	submitInfo.setWaitDstStageMask(pipelineStageFlags);
+	submitInfo.setCommandBufferCount(1);
+	submitInfo.setCommandBuffers(*commandBuffers.at(currentFrame));
+	submitInfo.setSignalSemaphoreCount(1);
+	submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
+
+	queue.submit(
+		submitInfo,
+		*inFlightFences[currentFrame]);
+
+	vk::PresentInfoKHR presentInfo;
+	presentInfo.setSwapchainCount(1);
+	presentInfo.setSwapchains(*swapChain);
+	presentInfo.setImageIndices(imageIndex);
+	presentInfo.setWaitSemaphoreCount(1);
+	presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
+
+	res = queue.presentKHR(presentInfo);
+
+	currentFrame = (currentFrame + 1) % framesInFlight;
 }
 
 void Renderer::initializeImGui()

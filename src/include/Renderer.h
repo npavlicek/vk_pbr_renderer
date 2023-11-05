@@ -2,12 +2,12 @@
 
 #include <chrono>
 
-#include "Util.h"
 #include "CommandBuffer.h"
-#include "Texture.h"
 #include "VkErrorHandling.h"
 #include "Frame.h"
 #include "Model.h"
+#include "Util.h"
+#include "Texture.h"
 
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_glfw.h>
@@ -20,15 +20,28 @@
 
 #include <vma/vk_mem_alloc.h>
 
+// FIXME: Not sure why this is required... using header guards
+class Texture;
+
+// FIXME: temporary
+struct ModelSettings
+{
+	struct
+	{
+		float x, y, z;
+	} pos;
+	struct
+	{
+		float x, y, z;
+	} rotation;
+};
+
 struct UniformData
 {
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 projection;
 };
-
-// FIXME: im not sure why this is required, i need to figure out how to fix the error i get without it.
-class Texture;
 
 class Renderer
 {
@@ -43,9 +56,10 @@ public:
 	void updateDescriptorSets(const Texture &tex);
 	Texture createTexture(const char *path);
 	Model createModel(const char *path);
-	void loop(const std::vector<Model> &models);
+	void render(const std::vector<Model> &models);
 	void destroy();
 	void destroyModel(Model &model);
+	void resetCommandBuffers();
 
 private:
 	// TODO: Convert back to non raii vk handles
@@ -110,10 +124,13 @@ private:
 	vk::ClearDepthStencilValue clearDepthValue;
 	std::vector<vk::ClearValue> clearValues;
 	vk::Rect2D renderArea;
+
+	ModelSettings modelSettings{{0.f, 5.f, 2.f}, {}};
 	// TODO: end temp
 
 	int queueFamilyGraphicsIndex;
 	int framesInFlight = 2;
+	int currentFrame = 0;
 
 	void createDescriptorObjects();
 	void createSyncObjects();

@@ -1,16 +1,16 @@
 # Vulkan PBR Renderer
 
-A simple PBR renderer written in CPP using Vulkan. May expand into something more in the future, or just be used as boilerplate for other projects.
+A simple PBR renderer written in CPP using Vulkan. May expand into something more in the future, or just be used as boilerplate for other projects. Still in its early stages.
 
 ## Dependencies
 
-- ImGui - included as a submodule. Compiled and linked together with the project.
-- TinyObjLoader - header is included in the `src/include` folder.
-- stb_image - same as above.
-- GLFW - must be compiled and installed. Place headers into a top level `include` directory next to the `src` folder. Lib file can be placed in a top level `lib` folder.
-- Vulkan - installed through the VulkanSDK installer.
-- Vulkan Memory Allocator - Can be installed seperately or through the VulkanSDK.
-- GLM - headers can be downloaded and placed in a top level `include/GLM` directory next to `src`. Or you can download these as a part of the VulkanSDK.
+- ImGui \[User Interface] - included as a submodule. Compiled and linked together with the project.
+- TinyObjLoader \[Model Loading] - header is included in the `src/include` folder.
+- stb_image \[Texture Loading] - same as above.
+- GLFW \[Window Manager] - must be compiled and installed. Place headers into a top level `include` directory next to the `src` folder. Lib file can be placed in a top level `lib` folder.
+- Vulkan \[Graphics API] - installed through the VulkanSDK installer.
+- Vulkan Memory Allocator \[Vulkan Memory Management] - Can be installed seperately or through the VulkanSDK.
+- GLM \[Matrix Math] - headers can be downloaded and placed in a top level `include/GLM` directory next to `src`. Or you can download these as a part of the VulkanSDK.
 
 ## How to Compile
 

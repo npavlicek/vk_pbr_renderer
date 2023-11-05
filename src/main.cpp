@@ -1,8 +1,9 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
-#include "Renderer.h"
 #include "Mesh.h"
 #include "Model.h"
+#include "Renderer.h"
+#include "Texture.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -80,7 +81,20 @@ int main()
 	models.push_back(std::move(model));
 	models.push_back(std::move(model2));
 
-	renderer.loop(models);
+	renderer.resetCommandBuffers();
+
+	auto lastTime = std::chrono::high_resolution_clock::now();
+
+	while (!glfwWindowShouldClose(window))
+	{
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		// float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		lastTime = currentTime;
+
+		glfwPollEvents();
+
+		renderer.render(models);
+	}
 
 	renderer.destroyModel(models.at(0));
 	renderer.destroyModel(models.at(1));
