@@ -14,6 +14,60 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+glm::vec3 cameraPos = glm::vec3{0.f, 0.f, -5.f};
+glm::vec3 cameraFront = glm::vec3(0.f, 0.f, 1.f);
+glm::vec3 cameraUp = glm::vec3(0.f, -1.f, 0.f);
+float cameraSpeed = 10.f;
+
+struct
+{
+	bool forward;
+	bool backward;
+	bool left;
+	bool right;
+} m;
+
+bool cursorEnabled = false;
+
+GLFWwindow *window = nullptr;
+
+float lastX = 1600 / 2, lastY = 900 / 2;
+
+float yaw, pitch;
+
+void calculateCameraDir()
+{
+	double cursorX, cursorY;
+	glfwGetCursorPos(window, &cursorX, &cursorY);
+
+	std::cout << cursorX << std::endl;
+
+	float xOffset = lastX - cursorX;
+	float yOffset = cursorY - lastY;
+	lastX = cursorX;
+	lastY = cursorY;
+
+	std::cout << cursorX << " " << xOffset << " " << lastX << std::endl;
+
+	const float sens = 0.1f;
+	xOffset *= sens;
+	yOffset *= sens;
+
+	yaw += xOffset;
+	pitch += yOffset;
+
+	if (pitch > 89.f)
+		pitch = 89.f;
+	if (pitch < -89.f)
+		pitch = -89.f;
+
+	glm::vec3 direction;
+	direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	direction.y = sin(glm::radians(pitch));
+	direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+	cameraFront = glm::normalize(direction);
+}
+
 void keyCallback(
 	GLFWwindow *window,
 	int key,
@@ -27,6 +81,54 @@ void keyCallback(
 			window,
 			GLFW_TRUE);
 	}
+
+	if (key == GLFW_KEY_W && action == GLFW_PRESS)
+	{
+		m.forward = true;
+	}
+	if (key == GLFW_KEY_S && action == GLFW_PRESS)
+	{
+		m.backward = true;
+	}
+	if (key == GLFW_KEY_D && action == GLFW_PRESS)
+	{
+		m.right = true;
+	}
+	if (key == GLFW_KEY_A && action == GLFW_PRESS)
+	{
+		m.left = true;
+	}
+
+	if (key == GLFW_KEY_E && action == GLFW_PRESS)
+	{
+		if (cursorEnabled)
+		{
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			cursorEnabled = false;
+		}
+		else
+		{
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			cursorEnabled = true;
+		}
+	}
+
+	if (key == GLFW_KEY_W && action == GLFW_RELEASE)
+	{
+		m.forward = false;
+	}
+	if (key == GLFW_KEY_S && action == GLFW_RELEASE)
+	{
+		m.backward = false;
+	}
+	if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+	{
+		m.right = false;
+	}
+	if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+	{
+		m.left = false;
+	}
 }
 
 int main()
@@ -37,7 +139,7 @@ int main()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	GLFWwindow *window = glfwCreateWindow(
+	window = glfwCreateWindow(
 		1600,
 		900,
 		"Testing Vulkan!",
@@ -54,6 +156,8 @@ int main()
 	glfwSetKeyCallback(
 		window,
 		keyCallback);
+
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	Renderer renderer(window);
 
@@ -88,12 +192,36 @@ int main()
 	while (!glfwWindowShouldClose(window))
 	{
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		// float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		float delta = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
 		lastTime = currentTime;
 
 		glfwPollEvents();
 
-		renderer.render(models);
+		if (!cursorEnabled)
+		{
+			calculateCameraDir();
+		}
+
+		if (m.forward)
+		{
+			cameraPos += cameraSpeed * cameraFront * delta;
+		}
+		if (m.backward)
+		{
+			cameraPos -= cameraSpeed * cameraFront * delta;
+		}
+		if (m.right)
+		{
+			cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * delta;
+		}
+		if (m.left)
+		{
+			cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * delta;
+		}
+
+		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+		renderer.render(models, view);
 	}
 
 	renderer.destroyModel(models.at(0));

@@ -56,7 +56,7 @@ public:
 	void updateDescriptorSets(const Texture &tex);
 	Texture createTexture(const char *path);
 	Model createModel(const char *path);
-	void render(const std::vector<Model> &models);
+	void render(const std::vector<Model> &models, glm::mat4 view);
 	void destroy();
 	void destroyModel(Model &model);
 	void resetCommandBuffers();

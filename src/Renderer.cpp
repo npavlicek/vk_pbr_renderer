@@ -71,12 +71,12 @@ Renderer::Renderer(GLFWwindow *window)
 		swapChainSurfaceCapabilities.currentExtent};
 
 	ubo.model = glm::mat4(1.f);
+	ubo.view = glm::mat4(1.f);
 	ubo.projection = glm::perspective(
 		45.f,
 		swapChainSurfaceCapabilities.currentExtent.width * 1.f / swapChainSurfaceCapabilities.currentExtent.height,
 		0.1f,
 		100.f);
-	ubo.view = glm::lookAt(glm::vec3{0.f, -5.f, 3.f}, glm::vec3{0.f, 0.f, 0.f}, glm::vec3(0.f, -1.f, 0.f));
 }
 
 Renderer::~Renderer()
@@ -117,7 +117,7 @@ void Renderer::resetCommandBuffers()
 	commandPool.reset();
 }
 
-void Renderer::render(const std::vector<Model> &models)
+void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
 {
 	res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
 	device.resetFences(*inFlightFences[currentFrame]);
@@ -204,6 +204,7 @@ void Renderer::render(const std::vector<Model> &models)
 	for (const auto &model : models)
 	{
 		ubo.model = model.getModel();
+		ubo.view = view;
 		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
 		model.draw(*commandBuffers[currentFrame]);
 	}
