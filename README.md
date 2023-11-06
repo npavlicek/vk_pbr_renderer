@@ -21,4 +21,4 @@ If you want to enable validation layers, you may enable the `ENABLE_VALIDATION_L
 I use CMake's `find_package` to search for GLFW, Vukan, and VMA library and header files. This command searches differently on different platforms so make sure to figure that out if you have errors. I use `set(CMAKE_PREFIX_PATH path)` in the `CMakeLists.txt` file to specify where the `glfw3Config.cmake` file can be found which in turn gives CMake the directions to find GLFW's headers and library files. This `set` command can be edited to search elsewhere if you want.
 
 ## Todo List
-- [ ] add to do list
+[Trello Board](https://trello.com/b/nu4QHymB/vkpbrrenderer)

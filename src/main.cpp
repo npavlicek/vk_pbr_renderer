@@ -47,8 +47,6 @@ void calculateCameraDir()
 	lastX = cursorX;
 	lastY = cursorY;
 
-	std::cout << cursorX << " " << xOffset << " " << lastX << std::endl;
-
 	const float sens = 0.1f;
 	xOffset *= sens;
 	yOffset *= sens;
