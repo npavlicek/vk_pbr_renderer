@@ -567,28 +567,43 @@ namespace util
 	vk::raii::RenderPass createRenderPass(
 		vk::raii::Device &device,
 		vk::SurfaceFormatKHR surfaceFormat,
-		vk::Format depthFormat)
+		vk::Format depthFormat,
+		vk::SampleCountFlagBits msaaSamples)
 	{
 		// Render Pass
+
+		// multisamples color
 		vk::AttachmentDescription attachmentDescription;
 		attachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
 		attachmentDescription.setStoreOp(vk::AttachmentStoreOp::eStore);
 		attachmentDescription.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
 		attachmentDescription.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
 		attachmentDescription.setInitialLayout(vk::ImageLayout::eUndefined);
-		attachmentDescription.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
-		attachmentDescription.setSamples(vk::SampleCountFlagBits::e1);
+		attachmentDescription.setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal);
+		attachmentDescription.setSamples(msaaSamples);
 		attachmentDescription.setFormat(surfaceFormat.format);
 
+		// depth
 		vk::AttachmentDescription depthAttachmentDescription{};
 		depthAttachmentDescription.setFormat(depthFormat);
 		depthAttachmentDescription.setInitialLayout(vk::ImageLayout::eUndefined);
 		depthAttachmentDescription.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
-		depthAttachmentDescription.setSamples(vk::SampleCountFlagBits::e1);
+		depthAttachmentDescription.setSamples(msaaSamples);
 		depthAttachmentDescription.setStoreOp(vk::AttachmentStoreOp::eDontCare);
 		depthAttachmentDescription.setLoadOp(vk::AttachmentLoadOp::eClear);
 		depthAttachmentDescription.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
 		depthAttachmentDescription.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
+
+		// resolved color 1 sample
+		vk::AttachmentDescription colorResolve{};
+		colorResolve.setFormat(surfaceFormat.format);
+		colorResolve.setSamples(msaaSamples);
+		colorResolve.setLoadOp(vk::AttachmentLoadOp::eDontCare);
+		colorResolve.setStoreOp(vk::AttachmentStoreOp::eStore);
+		colorResolve.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
+		colorResolve.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
+		colorResolve.setInitialLayout(vk::ImageLayout::eUndefined);
+		colorResolve.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
 
 		vk::AttachmentReference depthAttachmentReference{};
 		depthAttachmentReference.setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
@@ -598,11 +613,16 @@ namespace util
 		attachmentReference.setAttachment(0);
 		attachmentReference.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
+		vk::AttachmentReference resolveRef{};
+		resolveRef.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
+		resolveRef.setAttachment(2);
+
 		vk::SubpassDescription subpassDescription;
 		subpassDescription.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
 		subpassDescription.setColorAttachmentCount(1);
 		subpassDescription.setColorAttachments(attachmentReference);
 		subpassDescription.setPDepthStencilAttachment(&depthAttachmentReference);
+		subpassDescription.setResolveAttachments(resolveRef);
 
 		vk::SubpassDependency subpassDependency;
 		subpassDependency.setSrcSubpass(vk::SubpassExternal);
@@ -617,7 +637,8 @@ namespace util
 
 		std::vector<vk::AttachmentDescription> attachments{
 			attachmentDescription,
-			depthAttachmentDescription};
+			depthAttachmentDescription,
+			colorResolve};
 
 		vk::RenderPassCreateInfo renderPassCreateInfo;
 		renderPassCreateInfo.setAttachmentCount(attachments.size());
@@ -795,5 +816,57 @@ namespace util
 		return {
 			std::move(image),
 			std::move(imageMemory)};
+	}
+	Image createImage2(
+		const VmaAllocator &allocator,
+		vk::Format format,
+		vk::Extent3D extent,
+		int mipLevels,
+		vk::SampleCountFlagBits sampleCount,
+		vk::ImageUsageFlags imageUsage)
+	{
+		vk::ImageCreateInfo imageCreateInfo{};
+		imageCreateInfo.setArrayLayers(1);
+		imageCreateInfo.setFormat(format);
+		imageCreateInfo.setExtent(extent);
+		imageCreateInfo.setImageType(vk::ImageType::e2D);
+		imageCreateInfo.setInitialLayout(vk::ImageLayout::eUndefined);
+		imageCreateInfo.setMipLevels(static_cast<uint32_t>(mipLevels));
+		imageCreateInfo.setSamples(sampleCount);
+		imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+		imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
+		imageCreateInfo.setUsage(imageUsage);
+
+		VmaAllocationCreateInfo allocationCreateInfo;
+		allocationCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+
+		Image res{};
+		VkImage image;
+		vmaCreateImage(allocator, &static_cast<VkImageCreateInfo>(imageCreateInfo), &allocationCreateInfo, &image, &res.allocation, nullptr);
+		res.handle = vk::Image{image};
+		res.createInfo = imageCreateInfo;
+
+		return res;
+	}
+
+	vk::ImageView createImageView2(
+		const vk::Device &device,
+		const vk::Image &image,
+		vk::Format format,
+		vk::ImageAspectFlags imageAspectFlags)
+	{
+		vk::ImageViewCreateInfo imageViewCreateInfo{};
+		imageViewCreateInfo.setFormat(format);
+		imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
+		imageViewCreateInfo.setSubresourceRange(
+			{imageAspectFlags,
+			 0,
+			 1,
+			 0,
+			 1});
+		imageViewCreateInfo.setImage(image);
+
+		return device.createImageView(imageViewCreateInfo);
 	}
 } // pbr

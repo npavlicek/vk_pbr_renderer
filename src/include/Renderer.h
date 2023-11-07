@@ -96,6 +96,10 @@ private:
 	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
 	vk::SurfaceCapabilitiesKHR swapChainSurfaceCapabilities;
 	vk::Format depthImageFormat;
+	vk::SampleCountFlagBits msaaSamples;
+
+	util::Image multisampledImage;
+	vk::ImageView multisampledImageView;
 
 	VmaAllocator vmaAllocator;
 
@@ -137,5 +141,7 @@ private:
 	void createSwapChain();
 	void createDepthBuffers();
 	void createUniformBuffers();
+	void createMultisampledImageTarget();
+	void detectSampleCounts();
 	void initializeImGui();
 };

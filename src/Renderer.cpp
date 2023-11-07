@@ -38,6 +38,10 @@ Renderer::Renderer(GLFWwindow *window)
 	surface = util::createSurface(instance, window);
 	createSwapChain();
 
+	detectSampleCounts();
+
+	createMultisampledImageTarget();
+
 	createDepthBuffers();
 
 	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat);
@@ -83,6 +87,10 @@ Renderer::~Renderer()
 {
 	device.waitIdle();
 
+	(*device).destroyImageView(multisampledImageView);
+
+	vmaDestroyImage(vmaAllocator, multisampledImage.handle, multisampledImage.allocation);
+
 	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
 
 	for (int i = 0; i < static_cast<int>(uniformBuffers.size()); i++)
@@ -92,6 +100,42 @@ Renderer::~Renderer()
 	}
 
 	vmaDestroyAllocator(vmaAllocator);
+}
+
+void Renderer::detectSampleCounts()
+{
+	vk::SampleCountFlags colorSamples = physicalDevice.getProperties().limits.framebufferColorSampleCounts;
+	vk::SampleCountFlags depthSamples = physicalDevice.getProperties().limits.framebufferDepthSampleCounts;
+	vk::SampleCountFlags combined = colorSamples & depthSamples;
+
+	if (combined & vk::SampleCountFlagBits::e64)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e64;
+	}
+	if (combined & vk::SampleCountFlagBits::e32)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e32;
+	}
+	if (combined & vk::SampleCountFlagBits::e16)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e16;
+	}
+	if (combined & vk::SampleCountFlagBits::e8)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e8;
+	}
+	if (combined & vk::SampleCountFlagBits::e4)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e4;
+	}
+	if (combined & vk::SampleCountFlagBits::e2)
+	{
+		msaaSamples = vk::SampleCountFlagBits::e2;
+	}
+	else
+	{
+		msaaSamples = vk::SampleCountFlagBits::e1;
+	}
 }
 
 void Renderer::destroy()
@@ -383,6 +427,14 @@ void Renderer::createSwapChain()
 	std::tie(swapChain, swapChainCreateInfo) = util::createSwapChain(device, physicalDevice, surface, swapChainFormat, swapChainSurfaceCapabilities);
 	swapChainImages = swapChain.getImages();
 	swapChainImageViews = util::createImageViews(device, swapChainImages, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
+}
+
+void Renderer::createMultisampledImageTarget()
+{
+	multisampledImage = util::createImage2(vmaAllocator, swapChainFormat.format, vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1},
+										   1, msaaSamples, vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
+
+	multisampledImageView = util::createImageView2(*device, multisampledImage.handle, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer::createDepthBuffers()

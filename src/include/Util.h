@@ -7,6 +7,7 @@
 
 #include <vulkan/vulkan_raii.hpp>
 #include <vulkan/vulkan_to_string.hpp>
+#include <vma/vk_mem_alloc.h>
 #include <GLFW/glfw3.h>
 
 #include "Mesh.h"
@@ -16,6 +17,13 @@
 
 namespace util
 {
+	struct Image
+	{
+		vk::Image handle;
+		VmaAllocation allocation;
+		vk::ImageCreateInfo createInfo;
+	};
+
 	vk::raii::Instance createInstance(
 		vk::raii::Context &context,
 		const char *applicationName,
@@ -102,4 +110,37 @@ namespace util
 		vk::MemoryRequirements memoryRequirements,
 		vk::MemoryPropertyFlags memoryPropertyFlags,
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties);
+	/**
+	 * @brief Create an image. Prefer calling this function before any other allocations as it requests VMA to create dedicated memory.
+	 * Also allocates only on the GPU, can be edited to request CPU memory from VMA if needed.
+	 *
+	 * @param allocator vma allocator handle
+	 * @param format
+	 * @param extent
+	 * @param mipLevels
+	 * @param sampleCount
+	 * @param imageUsage
+	 * @return Image struct containing allocation info and vulkan image handle
+	 */
+	Image createImage2(
+		const VmaAllocator &allocator,
+		vk::Format format,
+		vk::Extent3D extent,
+		int mipLevels,
+		vk::SampleCountFlagBits sampleCount,
+		vk::ImageUsageFlags imageUsage);
+	/**
+	 * @brief create an image view
+	 *
+	 * @param device
+	 * @param image
+	 * @param format
+	 * @param imageAspectFlags
+	 * @return vk::ImageView
+	 */
+	vk::ImageView createImageView2(
+		const vk::Device &device,
+		const vk::Image &image,
+		vk::Format format,
+		vk::ImageAspectFlags imageAspectFlags);
 } // util
