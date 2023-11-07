@@ -1,5 +1,12 @@
 #include "Texture.h"
 
+#include "stb_image.h"
+
+#include "Util.h"
+#include "CommandBuffer.h"
+
+#include <string>
+
 Texture::Texture(
 	vk::raii::Device &device,
 	vk::raii::PhysicalDevice &physicalDevice,
@@ -33,7 +40,8 @@ Texture::Texture(
 			static_cast<uint32_t>(height),
 			1},
 		vk::ImageType::e2D,
-		vk::MemoryPropertyFlagBits::eDeviceLocal);
+		vk::MemoryPropertyFlagBits::eDeviceLocal,
+		vk::SampleCountFlagBits::e1);
 
 	image = std::make_unique<vk::raii::Image>(std::move(std::get<vk::raii::Image>(imageRes)));
 	imageMemory = std::make_unique<vk::raii::DeviceMemory>(std::move(std::get<vk::raii::DeviceMemory>(imageRes)));

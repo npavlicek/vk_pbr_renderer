@@ -44,15 +44,15 @@ Renderer::Renderer(GLFWwindow *window)
 
 	createDepthBuffers();
 
-	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat);
+	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat, msaaSamples);
 	shaderModules = util::createShaderModules(device, "shaders/vert.spv", "shaders/frag.spv");
 	std::tie(
 		pipeline,
 		pipelineLayout,
 		pipelineCache,
-		descriptorSetLayout) = util::createPipeline(device, renderPass, shaderModules);
+		descriptorSetLayout) = util::createPipeline(device, renderPass, shaderModules, msaaSamples);
 
-	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews, swapChainSurfaceCapabilities);
+	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews, multisampledImageView, swapChainSurfaceCapabilities);
 
 	createUniformBuffers();
 	createDescriptorObjects();
@@ -112,23 +112,23 @@ void Renderer::detectSampleCounts()
 	{
 		msaaSamples = vk::SampleCountFlagBits::e64;
 	}
-	if (combined & vk::SampleCountFlagBits::e32)
+	else if (combined & vk::SampleCountFlagBits::e32)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e32;
 	}
-	if (combined & vk::SampleCountFlagBits::e16)
+	else if (combined & vk::SampleCountFlagBits::e16)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e16;
 	}
-	if (combined & vk::SampleCountFlagBits::e8)
+	else if (combined & vk::SampleCountFlagBits::e8)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e8;
 	}
-	if (combined & vk::SampleCountFlagBits::e4)
+	else if (combined & vk::SampleCountFlagBits::e4)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e4;
 	}
-	if (combined & vk::SampleCountFlagBits::e2)
+	else if (combined & vk::SampleCountFlagBits::e2)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e2;
 	}
@@ -303,7 +303,7 @@ void Renderer::initializeImGui()
 		0,
 		swapChainSurfaceCapabilities.minImageCount,
 		swapChainSurfaceCapabilities.minImageCount,
-		static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1),
+		static_cast<VkSampleCountFlagBits>(msaaSamples),
 		false,
 		static_cast<VkFormat>(swapChainFormat.format),
 		nullptr,
@@ -431,8 +431,7 @@ void Renderer::createSwapChain()
 
 void Renderer::createMultisampledImageTarget()
 {
-	multisampledImage = util::createImage2(vmaAllocator, swapChainFormat.format, vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1},
-										   1, msaaSamples, vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
+	multisampledImage = util::createImage2(vmaAllocator, swapChainFormat.format, vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1}, 1, msaaSamples, vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
 
 	multisampledImageView = util::createImageView2(*device, multisampledImage.handle, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
 }
@@ -459,7 +458,8 @@ void Renderer::createDepthBuffers()
 												   swapChainSurfaceCapabilities.currentExtent.height,
 												   1},
 												  vk::ImageType::e2D,
-												  vk::MemoryPropertyFlagBits::eDeviceLocal);
+												  vk::MemoryPropertyFlagBits::eDeviceLocal,
+												  msaaSamples);
 		depthImageMemorys.push_back(std::move(depthImageMemory));
 		depthImagesTemp.push_back(*depthImage);
 		depthImages.push_back(std::move(depthImage));

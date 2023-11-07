@@ -2,13 +2,6 @@
 
 #include "vulkan/vulkan_raii.hpp"
 
-#include "stb_image.h"
-
-#include "Util.h"
-#include "CommandBuffer.h"
-
-#include <string>
-
 class Texture
 {
 public:

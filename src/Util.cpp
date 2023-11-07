@@ -1,5 +1,16 @@
 #include "Util.h"
 
+#include <iostream>
+#include <fstream>
+#include <exception>
+
+#include <vulkan/vulkan_to_string.hpp>
+
+#include "Mesh.h"
+#include "Validation.h"
+#include "VkErrorHandling.h"
+#include "Renderer.h"
+
 namespace util
 {
 	vk::raii::Instance createInstance(
@@ -109,6 +120,7 @@ namespace util
 
 		vk::PhysicalDeviceFeatures physicalDeviceFeatures;
 		physicalDeviceFeatures.setSamplerAnisotropy(vk::True);
+		physicalDeviceFeatures.setSampleRateShading(vk::True);
 
 		vk::DeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo.setQueueCreateInfoCount(1);
@@ -367,11 +379,11 @@ namespace util
 		return res;
 	}
 
-	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
-	createPipeline(
-		vk::raii::Device &device,
-		vk::raii::RenderPass &renderPass,
-		std::vector<vk::raii::ShaderModule> &shaderModules)
+	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout> createPipeline(
+		const vk::raii::Device &device,
+		const vk::raii::RenderPass &renderPass,
+		const std::vector<vk::raii::ShaderModule> &shaderModules,
+		vk::SampleCountFlagBits msaaSamples)
 	{
 		// Shader Stages
 		vk::PipelineShaderStageCreateInfo vertexShaderStageCreateInfo;
@@ -432,9 +444,10 @@ namespace util
 
 		// Multisampling
 
-		vk::PipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo;
-		pipelineMultisampleStateCreateInfo.setSampleShadingEnable(vk::False);
-		pipelineMultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
+		vk::PipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo{};
+		pipelineMultisampleStateCreateInfo.setRasterizationSamples(msaaSamples);
+		pipelineMultisampleStateCreateInfo.setSampleShadingEnable(vk::True);
+		pipelineMultisampleStateCreateInfo.setMinSampleShading(.2f);
 
 		// Depth testing
 		vk::PipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo{};
@@ -534,10 +547,11 @@ namespace util
 	}
 
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
-		vk::raii::Device &device,
-		vk::raii::RenderPass &renderPass,
-		std::vector<vk::raii::ImageView> &imageViews,
-		std::vector<vk::raii::ImageView> &depthImageViews,
+		const vk::raii::Device &device,
+		const vk::raii::RenderPass &renderPass,
+		const std::vector<vk::raii::ImageView> &imageViews,
+		const std::vector<vk::raii::ImageView> &depthImageViews,
+		const vk::ImageView &msaaView,
 		vk::SurfaceCapabilitiesKHR surfaceCapabilities)
 	{
 		std::vector<vk::raii::Framebuffer> frameBuffers;
@@ -550,9 +564,10 @@ namespace util
 
 		for (int i = 0; i < imageViews.size(); i++)
 		{
-			std::vector<vk::ImageView> imageViewAttachments{
-				*imageViews[i],
-				*depthImageViews[i]};
+			std::array<vk::ImageView, 3> imageViewAttachments{
+				msaaView,
+				*depthImageViews[i],
+				*imageViews[i]};
 
 			framebufferCreateInfo.setAttachments(imageViewAttachments);
 			framebufferCreateInfo.setAttachmentCount(imageViewAttachments.size());
@@ -597,7 +612,7 @@ namespace util
 		// resolved color 1 sample
 		vk::AttachmentDescription colorResolve{};
 		colorResolve.setFormat(surfaceFormat.format);
-		colorResolve.setSamples(msaaSamples);
+		colorResolve.setSamples(vk::SampleCountFlagBits::e1);
 		colorResolve.setLoadOp(vk::AttachmentLoadOp::eDontCare);
 		colorResolve.setStoreOp(vk::AttachmentStoreOp::eStore);
 		colorResolve.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
@@ -624,16 +639,21 @@ namespace util
 		subpassDescription.setPDepthStencilAttachment(&depthAttachmentReference);
 		subpassDescription.setResolveAttachments(resolveRef);
 
-		vk::SubpassDependency subpassDependency;
-		subpassDependency.setSrcSubpass(vk::SubpassExternal);
-		subpassDependency.setDstSubpass(0);
-		subpassDependency.setSrcStageMask(
-			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eLateFragmentTests);
-		subpassDependency.setDstStageMask(
-			vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests);
-		subpassDependency.setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite);
-		subpassDependency.setDstAccessMask(
-			vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+		std::array<vk::SubpassDependency, 2> subpassDependencies;
+
+		subpassDependencies.at(0).setSrcSubpass(vk::SubpassExternal);
+		subpassDependencies.at(0).setDstSubpass(0);
+		subpassDependencies.at(0).setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+		subpassDependencies.at(0).setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead);
+		subpassDependencies.at(0).setSrcStageMask(vk::PipelineStageFlagBits::eLateFragmentTests);
+		subpassDependencies.at(0).setDstStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests);
+
+		subpassDependencies.at(1).setSrcSubpass(vk::SubpassExternal);
+		subpassDependencies.at(1).setDstSubpass(0);
+		subpassDependencies.at(1).setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+		subpassDependencies.at(1).setDstAccessMask(vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite);
+		subpassDependencies.at(1).setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+		subpassDependencies.at(1).setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
 		std::vector<vk::AttachmentDescription> attachments{
 			attachmentDescription,
@@ -645,8 +665,8 @@ namespace util
 		renderPassCreateInfo.setAttachments(attachments);
 		renderPassCreateInfo.setSubpassCount(1);
 		renderPassCreateInfo.setSubpasses(subpassDescription);
-		renderPassCreateInfo.setDependencies(subpassDependency);
-		renderPassCreateInfo.setDependencyCount(1);
+		renderPassCreateInfo.setDependencies(subpassDependencies);
+		renderPassCreateInfo.setDependencyCount(subpassDependencies.size());
 
 		return {
 			device,
@@ -780,14 +800,15 @@ namespace util
 		vk::Format format,
 		vk::Extent3D extent,
 		vk::ImageType imageType,
-		vk::MemoryPropertyFlags memoryPropertyFlags)
+		vk::MemoryPropertyFlags memoryPropertyFlags,
+		vk::SampleCountFlagBits msaaSamples)
 	{
 		vk::ImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.setTiling(tiling);
 		imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
 		imageCreateInfo.setUsage(imageUsageFlags);
 		imageCreateInfo.setFormat(format);
-		imageCreateInfo.setSamples(vk::SampleCountFlagBits::e1);
+		imageCreateInfo.setSamples(msaaSamples);
 		imageCreateInfo.setArrayLayers(1);
 		imageCreateInfo.setExtent(extent);
 		imageCreateInfo.setImageType(imageType);
@@ -837,13 +858,13 @@ namespace util
 		imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
 		imageCreateInfo.setUsage(imageUsage);
 
-		VmaAllocationCreateInfo allocationCreateInfo;
+		VmaAllocationCreateInfo allocationCreateInfo{};
 		allocationCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
 		Image res{};
 		VkImage image;
-		vmaCreateImage(allocator, &static_cast<VkImageCreateInfo>(imageCreateInfo), &allocationCreateInfo, &image, &res.allocation, nullptr);
+		vmaCreateImage(allocator, reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo), &allocationCreateInfo, &image, &res.allocation, nullptr);
 		res.handle = vk::Image{image};
 		res.createInfo = imageCreateInfo;
 

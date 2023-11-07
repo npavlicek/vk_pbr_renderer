@@ -1,19 +1,10 @@
 #pragma once
 
-#include <iostream>
-#include <fstream>
 #include <optional>
-#include <exception>
 
 #include <vulkan/vulkan_raii.hpp>
-#include <vulkan/vulkan_to_string.hpp>
 #include <vma/vk_mem_alloc.h>
 #include <GLFW/glfw3.h>
-
-#include "Mesh.h"
-#include "Validation.h"
-#include "VkErrorHandling.h"
-#include "Renderer.h"
 
 namespace util
 {
@@ -72,18 +63,21 @@ namespace util
 		const char *fragmentShaderPath);
 	std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
 	createPipeline(
-		vk::raii::Device &device,
-		vk::raii::RenderPass &renderPass,
-		std::vector<vk::raii::ShaderModule> &shaderModules);
+		const vk::raii::Device &device,
+		const vk::raii::RenderPass &renderPass,
+		const std::vector<vk::raii::ShaderModule> &shaderModules,
+		vk::SampleCountFlagBits msaaSamples);
 	vk::raii::RenderPass createRenderPass(
 		vk::raii::Device &device,
 		vk::SurfaceFormatKHR surfaceFormat,
-		vk::Format depthFormat);
+		vk::Format depthFormat,
+		vk::SampleCountFlagBits msaaSamples);
 	std::vector<vk::raii::Framebuffer> createFrameBuffers(
-		vk::raii::Device &device,
-		vk::raii::RenderPass &renderPass,
-		std::vector<vk::raii::ImageView> &imageViews,
-		std::vector<vk::raii::ImageView> &depthImageViews,
+		const vk::raii::Device &device,
+		const vk::raii::RenderPass &renderPass,
+		const std::vector<vk::raii::ImageView> &imageViews,
+		const std::vector<vk::raii::ImageView> &depthImageViews,
+		const vk::ImageView &msaaView,
 		vk::SurfaceCapabilitiesKHR surfaceCapabilities);
 	vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device);
 	std::tuple<vk::raii::Image, vk::raii::DeviceMemory> createImage(
@@ -94,7 +88,8 @@ namespace util
 		vk::Format format,
 		vk::Extent3D extent,
 		vk::ImageType imageType,
-		vk::MemoryPropertyFlags memoryPropertyFlags);
+		vk::MemoryPropertyFlags memoryPropertyFlags,
+		vk::SampleCountFlagBits msaaSamples);
 	std::tuple<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(
 		vk::raii::Device &device,
 		vk::PhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,

@@ -40,8 +40,6 @@ void calculateCameraDir()
 	double cursorX, cursorY;
 	glfwGetCursorPos(window, &cursorX, &cursorY);
 
-	std::cout << cursorX << std::endl;
-
 	float xOffset = lastX - cursorX;
 	float yOffset = cursorY - lastY;
 	lastX = cursorX;

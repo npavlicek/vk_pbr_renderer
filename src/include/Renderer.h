@@ -20,9 +20,6 @@
 
 #include <vma/vk_mem_alloc.h>
 
-// FIXME: Not sure why this is required... using header guards
-class Texture;
-
 // FIXME: temporary
 struct ModelSettings
 {
