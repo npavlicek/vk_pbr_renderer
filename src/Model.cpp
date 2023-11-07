@@ -1,5 +1,7 @@
 #include "Model.h"
 
+#include "Material.h"
+
 Model::Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path)
 {
 	tinyobj::ObjReaderConfig objReaderConfig;
@@ -7,6 +9,11 @@ Model::Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk:
 
 	tinyobj::ObjReader objReader;
 	objReader.ParseFromFile(path, objReaderConfig);
+
+	for (const auto &material : objReader.GetMaterials())
+	{
+		materials.push_back(Material{vmaAllocator, queue, commandBuffer, material});
+	}
 
 	for (const auto &shape : objReader.GetShapes())
 	{
@@ -26,6 +33,11 @@ void Model::draw(const vk::CommandBuffer &commandBuffer) const
 
 void Model::destroy(const VmaAllocator &vmaAllocator)
 {
+	for (auto &mat : materials)
+	{
+		mat.destroy(vmaAllocator);
+	}
+
 	for (auto &mesh : meshes)
 	{
 		mesh.destroy(vmaAllocator);

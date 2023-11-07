@@ -159,8 +159,10 @@ int main()
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
-	Model model = renderer.createModel("models/cow.obj");
-	Model model2 = renderer.createModel("models/teddybear.obj");
+	// Model model = renderer.createModel("models/cow.obj");
+	// Model model2 = renderer.createModel("models/teddybear.obj");
+
+	Model testModel = renderer.createModel("models/rusty_sphere.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -169,17 +171,17 @@ int main()
 
 	std::cout << "Took " << elapsedTime.count() << " milliseconds to load OBJ model" << std::endl;
 
-	Texture texture = renderer.createTexture("res/monkey.png");
+	// Texture texture = renderer.createTexture("res/monkey.png");
 
-	renderer.updateDescriptorSets(texture);
+	// renderer.updateDescriptorSets(texture);
 
-	glm::mat4 model2Pos = glm::translate(glm::vec3(15.f, 0.f, 0.f));
-	model2Pos = glm::scale(model2Pos, glm::vec3(0.25f));
-	model2.setModel(model2Pos);
+	// glm::mat4 model2Pos = glm::translate(glm::vec3(15.f, 0.f, 0.f));
+	// model2Pos = glm::scale(model2Pos, glm::vec3(0.25f));
+	// model2.setModel(model2Pos);
 
 	std::vector<Model> models;
-	models.push_back(std::move(model));
-	models.push_back(std::move(model2));
+	// models.push_back(std::move(model));
+	// models.push_back(std::move(model2));
 
 	renderer.resetCommandBuffers();
 
@@ -220,8 +222,9 @@ int main()
 		renderer.render(models, view);
 	}
 
-	renderer.destroyModel(models.at(0));
-	renderer.destroyModel(models.at(1));
+	// renderer.destroyModel(models.at(0));
+	// renderer.destroyModel(models.at(1));
+	renderer.destroyModel(testModel);
 
 	renderer.destroy();
 

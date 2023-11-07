@@ -1,0 +1,18 @@
+# Blender 3.6.2 MTL File: 'None'
+# www.blender.org
+
+newmtl Material.001
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd C:/Programming/Projects/vk_pbr_renderer/res/sphere_diffuse.png
+map_Pm C:/Programming/Projects/vk_pbr_renderer/res/sphere_metallic.png
+map_Pr C:/Programming/Projects/vk_pbr_renderer/res/sphere_roughness.png
+norm -bm 1.000000 C:/Programming/Projects/vk_pbr_renderer/res/sphere_normal.png

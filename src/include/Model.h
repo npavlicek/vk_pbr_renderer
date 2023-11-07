@@ -3,7 +3,9 @@
 #include <iostream>
 
 #include <vma/vk_mem_alloc.h>
+#include <vector>
 
+#include "Material.h"
 #include "Mesh.h"
 
 class Model
@@ -35,6 +37,7 @@ public:
 
 private:
 	std::vector<Mesh> meshes;
+	std::vector<Material> materials;
 	glm::mat4 model{1.f};
 
 	void uploadMeshes(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer);
