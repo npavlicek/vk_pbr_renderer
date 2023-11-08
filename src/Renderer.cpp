@@ -153,7 +153,7 @@ void Renderer::destroyModel(Model &model)
 {
 	device.waitIdle();
 
-	model.destroy(vmaAllocator);
+	model.destroy(vmaAllocator, *device);
 }
 
 void Renderer::resetCommandBuffers()
@@ -474,5 +474,5 @@ void Renderer::createDepthBuffers()
 
 Model Renderer::createModel(const char *path)
 {
-	return Model(vmaAllocator, *queue, *commandBuffers[0], path);
+	return Model(vmaAllocator, *device, *queue, *commandBuffers[0], path);
 }

@@ -2,7 +2,7 @@
 
 #include "Material.h"
 
-Model::Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path)
+Model::Model(const VmaAllocator &vmaAllocator, const vk::Device &device, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path)
 {
 	tinyobj::ObjReaderConfig objReaderConfig;
 	objReaderConfig.triangulate = true;
@@ -12,7 +12,7 @@ Model::Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk:
 
 	for (const auto &material : objReader.GetMaterials())
 	{
-		materials.push_back(Material{vmaAllocator, queue, commandBuffer, material});
+		materials.push_back(Material{vmaAllocator, device, queue, commandBuffer, material});
 	}
 
 	for (const auto &shape : objReader.GetShapes())
@@ -31,11 +31,11 @@ void Model::draw(const vk::CommandBuffer &commandBuffer) const
 	}
 }
 
-void Model::destroy(const VmaAllocator &vmaAllocator)
+void Model::destroy(const VmaAllocator &vmaAllocator, const vk::Device &device)
 {
 	for (auto &mat : materials)
 	{
-		mat.destroy(vmaAllocator);
+		mat.destroy(vmaAllocator, device);
 	}
 
 	for (auto &mesh : meshes)

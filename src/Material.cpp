@@ -2,11 +2,12 @@
 
 #include "stb_image.h"
 
+#include "VkErrorHandling.h"
 #include "CommandBuffer.h"
 
 #include <format>
 
-Material::Material(const VmaAllocator &allocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
+Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
 {
 	std::tie(
 		diffuse,
@@ -23,10 +24,41 @@ Material::Material(const VmaAllocator &allocator, const vk::Queue &queue, const 
 	std::tie(
 		normal,
 		normalAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.normal_texname.c_str());
+
+	VkImageSubresourceRange imageSubresourceRange{};
+	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageSubresourceRange.baseArrayLayer = 0;
+	imageSubresourceRange.baseMipLevel = 0;
+	imageSubresourceRange.layerCount = 1;
+	imageSubresourceRange.levelCount = 1;
+
+	VkImageViewCreateInfo imageViewCreateInfo{};
+	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imageViewCreateInfo.components = VkComponentMapping{};
+	imageViewCreateInfo.format = VK_FORMAT_R8G8B8_SRGB;
+	imageViewCreateInfo.subresourceRange = imageSubresourceRange;
+
+	imageViewCreateInfo.image = diffuse;
+	VkResCheck res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &diffuseView);
+
+	imageViewCreateInfo.image = metallic;
+	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &metallicView);
+
+	imageViewCreateInfo.image = roughness;
+	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &roughnessView);
+
+	imageViewCreateInfo.image = normal;
+	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &normalView);
 }
 
-void Material::destroy(VmaAllocator allocator)
+void Material::destroy(const VmaAllocator &allocator, const vk::Device &device)
 {
+	vkDestroyImageView(device, diffuseView, nullptr);
+	vkDestroyImageView(device, metallicView, nullptr);
+	vkDestroyImageView(device, roughnessView, nullptr);
+	vkDestroyImageView(device, normalView, nullptr);
+
 	vmaDestroyImage(allocator, diffuse, diffuseAlloc);
 	vmaDestroyImage(allocator, metallic, metallicAlloc);
 	vmaDestroyImage(allocator, roughness, roughnessAlloc);
@@ -58,7 +90,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	VmaAllocation stagingAllocation;
 	VmaAllocationInfo allocInfo;
 
-	vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer, &stagingAllocation, &allocInfo);
+	VkResCheck res = vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer, &stagingAllocation, &allocInfo);
 
 	memcpy(allocInfo.pMappedData, data, bufferCreateInfo.size);
 
@@ -87,7 +119,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	VkImage image;
 	VmaAllocation imageAllocation;
 
-	vmaCreateImage(allocator, &imageCreateInfo, &imageAllocationCreateInfo, &image, &imageAllocation, nullptr);
+	res = vmaCreateImage(allocator, &imageCreateInfo, &imageAllocationCreateInfo, &image, &imageAllocation, nullptr);
 
 	// Transition to transfer dst
 
@@ -153,4 +185,25 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	return std::make_tuple(image, imageAllocation);
+}
+
+VkSampler Material::createSampler(const vk::Device &device)
+{
+	vk::SamplerCreateInfo samplerCreateInfo{};
+	samplerCreateInfo.setAddressModeU(vk::SamplerAddressMode::eClampToEdge);
+	samplerCreateInfo.setAddressModeV(vk::SamplerAddressMode::eClampToEdge);
+	samplerCreateInfo.setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
+	samplerCreateInfo.setBorderColor(vk::BorderColor::eIntOpaqueBlack);
+	samplerCreateInfo.setAnisotropyEnable(vk::True);
+	samplerCreateInfo.setCompareEnable(vk::False);
+	samplerCreateInfo.setCompareOp(vk::CompareOp::eAlways);
+	samplerCreateInfo.setUnnormalizedCoordinates(vk::True);
+	samplerCreateInfo.setMipmapMode(vk::SamplerMipmapMode::eLinear);
+	samplerCreateInfo.setMagFilter(vk::Filter::eLinear);
+	samplerCreateInfo.setMinFilter(vk::Filter::eLinear);
+	samplerCreateInfo.setMaxAnisotropy(0.f); // TODO: change
+	samplerCreateInfo.setMaxLod(0.f);
+	samplerCreateInfo.setMinLod(0.f);
+
+	return device.createSampler(samplerCreateInfo);
 }

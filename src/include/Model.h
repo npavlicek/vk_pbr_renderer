@@ -12,7 +12,7 @@ class Model
 {
 public:
 	constexpr Model() = delete;
-	Model(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path);
+	Model(const VmaAllocator &vmaAllocator, const vk::Device &device, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path);
 	constexpr Model(const Model &) = delete;
 	constexpr Model &operator=(const Model &) = delete;
 	constexpr Model(Model &&) = default;
@@ -33,7 +33,7 @@ public:
 	}
 
 	void draw(const vk::CommandBuffer &commandBuffer) const;
-	void destroy(const VmaAllocator &vmaAllocator);
+	void destroy(const VmaAllocator &vmaAllocator, const vk::Device &device);
 
 private:
 	std::vector<Mesh> meshes;
