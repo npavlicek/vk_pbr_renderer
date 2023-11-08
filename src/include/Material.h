@@ -16,9 +16,11 @@ public:
 	constexpr Material &operator=(const Material &rhs) = delete;
 	constexpr Material(Material &&) = default;
 
-	void destroy(const VmaAllocator &allocator, const vk::Device &device);
+	void bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const;
+	void destroy(const VmaAllocator &allocator, const vk::Device &device, const vk::DescriptorPool &descriptorPool);
 
-	static VkSampler createSampler(const vk::Device &device);
+	static vk::Sampler createSampler(const vk::Device &device, float maxAnisotropy);
+	void createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool, const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler);
 
 private:
 	std::tuple<VkImage, VmaAllocation>
@@ -39,4 +41,6 @@ private:
 	VkImage normal;
 	VkImageView normalView;
 	VmaAllocation normalAlloc;
+
+	std::vector<vk::DescriptorSet> descriptorSets;
 };

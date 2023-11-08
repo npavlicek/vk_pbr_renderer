@@ -1,7 +1,9 @@
 #include "Mesh.h"
 
-Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib)
+Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int materialId)
 {
+	this->materialId = materialId;
+
 	std::unordered_map<Vertex, uint16_t> uniqueVertices;
 
 	srand(time(NULL));
@@ -17,21 +19,16 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib)
 		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
 		vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
 
-		// vertex.color = glm::vec3(0.5f);
-
-		vertex.texCoords = glm::vec2(0.f);
-
-		// if (attrib.texcoords.size() != 0)
-		// {
-
-		// 	vertex.texCoords[0] = attrib.texcoords.at(2 * index.texcoord_index);
-		// 	// REMEMBER THE Y AXIS IS FLIPPED IN VULKAN
-		// 	vertex.texCoords[1] = 1 - attrib.texcoords.at(2 * index.texcoord_index + 1);
-		// }
-		// else
-		// {
-		// 	vertex.texCoords = glm::vec2(0.f);
-		// }
+		if (attrib.texcoords.size() != 0)
+		{
+			vertex.texCoords[0] = attrib.texcoords.at(2 * index.texcoord_index);
+			// REMEMBER THE Y AXIS IS FLIPPED IN VULKAN
+			vertex.texCoords[1] = 1 - attrib.texcoords.at(2 * index.texcoord_index + 1);
+		}
+		else
+		{
+			vertex.texCoords = glm::vec2(0.f);
+		}
 
 		if (uniqueVertices.count(vertex) == 0)
 		{
@@ -78,12 +75,14 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 
 	VmaAllocationCreateInfo vmaStagingBufferAllocCreateInfo{};
 	vmaStagingBufferAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vmaStagingBufferAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	vmaStagingBufferAllocCreateInfo.flags =
+		VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingBufferAllocation;
 	VmaAllocationInfo stagingBufferAllocInfo;
-	vmaCreateBuffer(vmaAllocator, &stagingBufferCreateInfo, &vmaStagingBufferAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocInfo);
+	vmaCreateBuffer(vmaAllocator, &stagingBufferCreateInfo, &vmaStagingBufferAllocCreateInfo, &stagingBuffer,
+					&stagingBufferAllocation, &stagingBufferAllocInfo);
 
 	VkBufferCreateInfo vertexBufferCreateInfo{};
 	vertexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -94,7 +93,8 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	VmaAllocationCreateInfo vmaAllocCreateInfo{};
 	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	vmaCreateBuffer(vmaAllocator, &vertexBufferCreateInfo, &vmaAllocCreateInfo, &vertexBuffer, &vertexBufferAllocation, nullptr);
+	vmaCreateBuffer(vmaAllocator, &vertexBufferCreateInfo, &vmaAllocCreateInfo, &vertexBuffer, &vertexBufferAllocation,
+					nullptr);
 
 	VkBufferCreateInfo indexBufferCreateInfo{};
 	indexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -102,7 +102,8 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	indexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	indexBufferCreateInfo.size = indicesSize;
 
-	vmaCreateBuffer(vmaAllocator, &indexBufferCreateInfo, &vmaAllocCreateInfo, &indexBuffer, &indexBufferAllocation, nullptr);
+	vmaCreateBuffer(vmaAllocator, &indexBufferCreateInfo, &vmaAllocCreateInfo, &indexBuffer, &indexBufferAllocation,
+					nullptr);
 
 	memcpy(stagingBufferAllocInfo.pMappedData, vertices.data(), verticesSize);
 

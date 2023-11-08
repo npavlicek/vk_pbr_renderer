@@ -8,6 +8,9 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+//#define VMA_DEBUG_LOG_FORMAT(fmt, ...) \
+	printf(fmt, __VA_ARGS__);          \
+	printf("\n");
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
@@ -64,18 +67,11 @@ void calculateCameraDir()
 	cameraFront = glm::normalize(direction);
 }
 
-void keyCallback(
-	GLFWwindow *window,
-	int key,
-	int scancode,
-	int action,
-	int mods)
+void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 	{
-		glfwSetWindowShouldClose(
-			window,
-			GLFW_TRUE);
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	}
 
 	if (key == GLFW_KEY_W && action == GLFW_PRESS)
@@ -135,12 +131,7 @@ int main()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	window = glfwCreateWindow(
-		1600,
-		900,
-		"Testing Vulkan!",
-		nullptr,
-		nullptr);
+	window = glfwCreateWindow(1600, 900, "Testing Vulkan!", nullptr, nullptr);
 
 	if (!window)
 	{
@@ -149,9 +140,7 @@ int main()
 		return -1;
 	}
 
-	glfwSetKeyCallback(
-		window,
-		keyCallback);
+	glfwSetKeyCallback(window, keyCallback);
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -166,8 +155,8 @@ int main()
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
-	auto elapsedTime = static_cast<std::chrono::duration<float, std::chrono::milliseconds::period>>(objLoadEndTime -
-																									objLoadStartTime);
+	auto elapsedTime =
+		static_cast<std::chrono::duration<float, std::chrono::milliseconds::period>>(objLoadEndTime - objLoadStartTime);
 
 	std::cout << "Took " << elapsedTime.count() << " milliseconds to load OBJ model" << std::endl;
 
@@ -180,8 +169,7 @@ int main()
 	// model2.setModel(model2Pos);
 
 	std::vector<Model> models;
-	// models.push_back(std::move(model));
-	// models.push_back(std::move(model2));
+	models.push_back(std::move(testModel));
 
 	renderer.resetCommandBuffers();
 
@@ -222,9 +210,7 @@ int main()
 		renderer.render(models, view);
 	}
 
-	// renderer.destroyModel(models.at(0));
-	// renderer.destroyModel(models.at(1));
-	renderer.destroyModel(testModel);
+	renderer.destroyModel(models.at(0));
 
 	renderer.destroy();
 

@@ -82,7 +82,7 @@ class Mesh
 {
 public:
 	constexpr Mesh() = delete;
-	Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib);
+	Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int materialId);
 	constexpr Mesh(const Mesh &) = delete;
 	constexpr Mesh &operator=(const Mesh &) = delete;
 	constexpr Mesh(Mesh &&) = default;
@@ -92,6 +92,7 @@ public:
 		return vertices;
 	}
 	const std::vector<uint16_t> &getIndices() const { return indices; }
+	const int getMaterialId() const { return materialId; }
 
 	void draw(const vk::CommandBuffer &commandBuffer) const;
 	void uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer);
@@ -100,6 +101,7 @@ public:
 private:
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
+	int materialId;
 
 	VkBuffer vertexBuffer;
 	VmaAllocation vertexBufferAllocation;

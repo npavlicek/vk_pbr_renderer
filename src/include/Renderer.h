@@ -3,19 +3,22 @@
 #include <chrono>
 
 #include "CommandBuffer.h"
-#include "VkErrorHandling.h"
 #include "Frame.h"
 #include "Model.h"
-#include "Util.h"
 #include "Texture.h"
+#include "Util.h"
+#include "VkErrorHandling.h"
 
-#include <imgui/imgui.h>
+
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
+#include <imgui/imgui.h>
 
-#include <glm/glm.hpp>
-#include <glm/ext.hpp>
+
 #include <glm/common.hpp>
+#include <glm/ext.hpp>
+#include <glm/glm.hpp>
+
 // #include <glm/gtx/string_cast.hpp>
 
 #include <vma/vk_mem_alloc.h>
@@ -42,15 +45,13 @@ struct UniformData
 
 class Renderer
 {
-public:
+  public:
 	Renderer() = delete;
 	Renderer(GLFWwindow *window);
 	Renderer(const Renderer &rhs) = delete;
 	Renderer(const Renderer &&rhs) = delete;
 	~Renderer();
 
-	void uploadUniformData(const UniformData &uniformData, int frame);
-	void updateDescriptorSets(const Texture &tex);
 	Texture createTexture(const char *path);
 	Model createModel(const char *path);
 	void render(const std::vector<Model> &models, glm::mat4 view);
@@ -58,7 +59,7 @@ public:
 	void destroyModel(Model &model);
 	void resetCommandBuffers();
 
-private:
+  private:
 	// TODO: Convert back to non raii vk handles
 	vk::raii::Context context;
 	vk::raii::Instance instance{nullptr};
@@ -77,7 +78,6 @@ private:
 	vk::raii::DescriptorPool descriptorPool{nullptr};
 
 	std::vector<vk::Image> swapChainImages;
-	std::vector<vk::DescriptorSet> descriptorSets;
 	std::vector<vk::raii::ImageView> swapChainImageViews;
 	std::vector<vk::raii::CommandBuffer> commandBuffers;
 	std::vector<vk::raii::ShaderModule> shaderModules;
@@ -94,6 +94,7 @@ private:
 	vk::SurfaceCapabilitiesKHR swapChainSurfaceCapabilities;
 	vk::Format depthImageFormat;
 	vk::SampleCountFlagBits msaaSamples;
+	vk::Sampler sampler;
 
 	util::Image multisampledImage;
 	vk::ImageView multisampledImageView;
@@ -105,11 +106,6 @@ private:
 
 	VmaAllocation indexBufferAllocation;
 	vk::Buffer indexBuffer;
-
-	// TODO: delete the unused uniform buffers, using push constants instead
-	std::vector<VmaAllocation> uniformBufferAllocations;
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<void *> uniformBufferPtr;
 
 	GLFWwindow *window;
 	ImGuiContext *imGuiContext;
@@ -133,11 +129,9 @@ private:
 	int framesInFlight = 2;
 	int currentFrame = 0;
 
-	void createDescriptorObjects();
 	void createSyncObjects();
 	void createSwapChain();
 	void createDepthBuffers();
-	void createUniformBuffers();
 	void createMultisampledImageTarget();
 	void detectSampleCounts();
 	void initializeImGui();

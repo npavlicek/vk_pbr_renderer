@@ -2,28 +2,23 @@
 
 #include "stb_image.h"
 
-#include "VkErrorHandling.h"
 #include "CommandBuffer.h"
+#include "VkErrorHandling.h"
+
 
 #include <format>
 
-Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
+Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue,
+				   const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
 {
-	std::tie(
-		diffuse,
-		diffuseAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.diffuse_texname.c_str());
+	std::tie(diffuse, diffuseAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.diffuse_texname.c_str());
 
-	std::tie(
-		metallic,
-		metallicAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.metallic_texname.c_str());
+	std::tie(metallic, metallicAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.metallic_texname.c_str());
 
-	std::tie(
-		roughness,
-		roughnessAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.roughness_texname.c_str());
+	std::tie(roughness, roughnessAlloc) =
+		loadImage(allocator, queue, commandBuffer, tinyObjMat.roughness_texname.c_str());
 
-	std::tie(
-		normal,
-		normalAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.normal_texname.c_str());
+	std::tie(normal, normalAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.normal_texname.c_str());
 
 	VkImageSubresourceRange imageSubresourceRange{};
 	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -36,7 +31,7 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	imageViewCreateInfo.components = VkComponentMapping{};
-	imageViewCreateInfo.format = VK_FORMAT_R8G8B8_SRGB;
+	imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 	imageViewCreateInfo.subresourceRange = imageSubresourceRange;
 
 	imageViewCreateInfo.image = diffuse;
@@ -52,8 +47,11 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &normalView);
 }
 
-void Material::destroy(const VmaAllocator &allocator, const vk::Device &device)
+void Material::destroy(const VmaAllocator &allocator, const vk::Device &device,
+					   const vk::DescriptorPool &descriptorPool)
 {
+	device.freeDescriptorSets(descriptorPool, descriptorSets);
+
 	vkDestroyImageView(device, diffuseView, nullptr);
 	vkDestroyImageView(device, metallicView, nullptr);
 	vkDestroyImageView(device, roughnessView, nullptr);
@@ -65,14 +63,15 @@ void Material::destroy(const VmaAllocator &allocator, const vk::Device &device)
 	vmaDestroyImage(allocator, normal, normalAlloc);
 }
 
-std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &allocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path)
+std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
+													   const vk::CommandBuffer &commandBuffer, const char *path)
 {
 	int width, height, channels;
 	unsigned char *data = stbi_load(path, &width, &height, &channels, 4);
 
 	if (!data)
 	{
-		throw std::runtime_error(std::format("Could not open material texture: %s", path));
+		throw std::runtime_error(std::format("Could not open material texture: {}", path));
 	}
 
 	VkBufferCreateInfo bufferCreateInfo{};
@@ -83,14 +82,16 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	bufferCreateInfo.size = width * height * 4;
 
 	VmaAllocationCreateInfo allocationCreateInfo{};
-	allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT | VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT |
+								 VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
 	VmaAllocationInfo allocInfo;
 
-	VkResCheck res = vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer, &stagingAllocation, &allocInfo);
+	VkResCheck res = vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer,
+									 &stagingAllocation, &allocInfo);
 
 	memcpy(allocInfo.pMappedData, data, bufferCreateInfo.size);
 
@@ -141,7 +142,9 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 
 	CommandBuffer::beginSTC(commandBuffer);
 
-	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlagBits::eByRegion, nullptr, nullptr, vk::ImageMemoryBarrier(imageMemoryBarrier));
+	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+								  vk::DependencyFlagBits::eByRegion, nullptr, nullptr,
+								  vk::ImageMemoryBarrier(imageMemoryBarrier));
 
 	CommandBuffer::endSTC(commandBuffer, queue);
 
@@ -175,7 +178,8 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, vk::DependencyFlagBits::eByRegion, 0, 0, vk::ImageMemoryBarrier(imageMemoryBarrier));
+	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
+								  vk::DependencyFlagBits::eByRegion, 0, 0, vk::ImageMemoryBarrier(imageMemoryBarrier));
 
 	CommandBuffer::endSTC(commandBuffer, queue);
 	//
@@ -187,7 +191,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	return std::make_tuple(image, imageAllocation);
 }
 
-VkSampler Material::createSampler(const vk::Device &device)
+vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotropy)
 {
 	vk::SamplerCreateInfo samplerCreateInfo{};
 	samplerCreateInfo.setAddressModeU(vk::SamplerAddressMode::eClampToEdge);
@@ -197,13 +201,75 @@ VkSampler Material::createSampler(const vk::Device &device)
 	samplerCreateInfo.setAnisotropyEnable(vk::True);
 	samplerCreateInfo.setCompareEnable(vk::False);
 	samplerCreateInfo.setCompareOp(vk::CompareOp::eAlways);
-	samplerCreateInfo.setUnnormalizedCoordinates(vk::True);
+	samplerCreateInfo.setUnnormalizedCoordinates(vk::False);
 	samplerCreateInfo.setMipmapMode(vk::SamplerMipmapMode::eLinear);
 	samplerCreateInfo.setMagFilter(vk::Filter::eLinear);
 	samplerCreateInfo.setMinFilter(vk::Filter::eLinear);
-	samplerCreateInfo.setMaxAnisotropy(0.f); // TODO: change
+	samplerCreateInfo.setMaxAnisotropy(maxAnisotropy);
 	samplerCreateInfo.setMaxLod(0.f);
 	samplerCreateInfo.setMinLod(0.f);
 
 	return device.createSampler(samplerCreateInfo);
+}
+
+void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const
+{
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets, nullptr);
+}
+
+void Material::createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,
+									const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler)
+{
+	vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+	descriptorSetAllocateInfo.setDescriptorPool(pool);
+	descriptorSetAllocateInfo.setSetLayouts(setLayout);
+
+	descriptorSets = device.allocateDescriptorSets(descriptorSetAllocateInfo);
+
+	vk::DescriptorImageInfo diffuseImageInfo;
+	diffuseImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+	diffuseImageInfo.setSampler(sampler);
+	diffuseImageInfo.setImageView(diffuseView);
+
+	vk::DescriptorImageInfo metallicImageInfo;
+	metallicImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+	metallicImageInfo.setSampler(sampler);
+	metallicImageInfo.setImageView(metallicView);
+
+	vk::DescriptorImageInfo roughnessImageInfo;
+	roughnessImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+	roughnessImageInfo.setSampler(sampler);
+	roughnessImageInfo.setImageView(roughnessView);
+
+	vk::DescriptorImageInfo normalImageInfo;
+	normalImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+	normalImageInfo.setSampler(sampler);
+	normalImageInfo.setImageView(normalView);
+
+	vk::WriteDescriptorSet writeDiffuse{};
+	writeDiffuse.setDescriptorCount(1);
+	writeDiffuse.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+	writeDiffuse.setDstArrayElement(0);
+	writeDiffuse.setDstBinding(0);
+	writeDiffuse.setDstSet(descriptorSets.at(0));
+	writeDiffuse.setImageInfo(diffuseImageInfo);
+
+	vk::WriteDescriptorSet writeMetallic = writeDiffuse;
+	writeMetallic.setDstBinding(1);
+	writeMetallic.setDstSet(descriptorSets.at(0));
+	writeMetallic.setImageInfo(metallicImageInfo);
+
+	vk::WriteDescriptorSet writeRoughness = writeDiffuse;
+	writeRoughness.setDstBinding(2);
+	writeRoughness.setDstSet(descriptorSets.at(0));
+	writeRoughness.setImageInfo(roughnessImageInfo);
+
+	vk::WriteDescriptorSet writeNormal = writeDiffuse;
+	writeNormal.setDstBinding(3);
+	writeNormal.setDstSet(descriptorSets.at(0));
+	writeNormal.setImageInfo(normalImageInfo);
+
+	std::array<vk::WriteDescriptorSet, 4> writeDescriptorSets{writeDiffuse, writeMetallic, writeRoughness, writeNormal};
+
+	device.updateDescriptorSets(writeDescriptorSets, nullptr);
 }

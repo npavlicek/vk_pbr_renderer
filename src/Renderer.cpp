@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "Util.h"
 
 Renderer::Renderer(GLFWwindow *window)
 {
@@ -11,13 +12,12 @@ Renderer::Renderer(GLFWwindow *window)
 		vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
 		vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning);
 	debugUtilsMessengerCreateInfo.setMessageType(
-		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-		vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
-		vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
-		vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+		vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
 	debugUtilsMessengerCreateInfo.setPfnUserCallback(&VkResCheck::PFN_vkDebugUtilsMessengerCallbackEXT);
 
-	instance = util::createInstance(context, "Vulkan PBR Renderer", "Vulkan PBR Renderer", debugUtilsMessengerCreateInfo);
+	instance =
+		util::createInstance(context, "Vulkan PBR Renderer", "Vulkan PBR Renderer", debugUtilsMessengerCreateInfo);
 
 	debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfo);
 
@@ -46,58 +46,42 @@ Renderer::Renderer(GLFWwindow *window)
 
 	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat, msaaSamples);
 	shaderModules = util::createShaderModules(device, "shaders/vert.spv", "shaders/frag.spv");
-	std::tie(
-		pipeline,
-		pipelineLayout,
-		pipelineCache,
-		descriptorSetLayout) = util::createPipeline(device, renderPass, shaderModules, msaaSamples);
+	std::tie(pipeline, pipelineLayout, pipelineCache, descriptorSetLayout) =
+		util::createPipeline(device, renderPass, shaderModules, msaaSamples);
 
-	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews, multisampledImageView, swapChainSurfaceCapabilities);
+	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews,
+											multisampledImageView, swapChainSurfaceCapabilities);
 
-	createUniformBuffers();
-	createDescriptorObjects();
+	descriptorPool = util::createDescriptorPool(device);
+
 	createSyncObjects();
 	initializeImGui();
 
-	clearColorValue = vk::ClearColorValue{
-		0.f,
-		0.f,
-		0.f,
-		1.f};
-	clearDepthValue = vk::ClearDepthStencilValue{
-		1.f,
-		0};
+	sampler = Material::createSampler(*device, physicalDevice.getProperties().limits.maxSamplerAnisotropy);
+
+	clearColorValue = vk::ClearColorValue{0.f, 0.f, 0.f, 1.f};
+	clearDepthValue = vk::ClearDepthStencilValue{1.f, 0};
 	clearValues.push_back(clearColorValue);
 	clearValues.push_back(clearDepthValue);
-	renderArea = vk::Rect2D{
-		{0,
-		 0},
-		swapChainSurfaceCapabilities.currentExtent};
+	renderArea = vk::Rect2D{{0, 0}, swapChainSurfaceCapabilities.currentExtent};
 
 	ubo.model = glm::mat4(1.f);
 	ubo.view = glm::mat4(1.f);
-	ubo.projection = glm::perspective(
-		45.f,
-		swapChainSurfaceCapabilities.currentExtent.width * 1.f / swapChainSurfaceCapabilities.currentExtent.height,
-		0.1f,
-		100.f);
+	ubo.projection = glm::perspective(45.f,
+									  swapChainSurfaceCapabilities.currentExtent.width * 1.f /
+										  swapChainSurfaceCapabilities.currentExtent.height,
+									  0.1f, 100.f);
 }
 
 Renderer::~Renderer()
 {
 	device.waitIdle();
 
+	(*device).destroySampler(sampler);
+
 	(*device).destroyImageView(multisampledImageView);
 
 	vmaDestroyImage(vmaAllocator, multisampledImage.handle, multisampledImage.allocation);
-
-	(*device).freeDescriptorSets(*descriptorPool, descriptorSets);
-
-	for (int i = 0; i < static_cast<int>(uniformBuffers.size()); i++)
-	{
-		vmaUnmapMemory(vmaAllocator, uniformBufferAllocations[i]);
-		vmaDestroyBuffer(vmaAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
-	}
 
 	vmaDestroyAllocator(vmaAllocator);
 }
@@ -153,7 +137,7 @@ void Renderer::destroyModel(Model &model)
 {
 	device.waitIdle();
 
-	model.destroy(vmaAllocator, *device);
+	model.destroy(vmaAllocator, *device, *descriptorPool);
 }
 
 void Renderer::resetCommandBuffers()
@@ -173,74 +157,36 @@ void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
 	ImGui::NewFrame();
 	ImGui::Begin("Settings");
 	ImGui::Text("Model Rotation");
-	ImGui::SliderFloat(
-		"World X",
-		&modelSettings.rotation.x,
-		-360.f,
-		360.f);
-	ImGui::SliderFloat(
-		"World Y",
-		&modelSettings.rotation.y,
-		-360.f,
-		360.f);
-	ImGui::SliderFloat(
-		"World Z",
-		&modelSettings.rotation.z,
-		-360.f,
-		360.f);
+	ImGui::SliderFloat("World X", &modelSettings.rotation.x, -360.f, 360.f);
+	ImGui::SliderFloat("World Y", &modelSettings.rotation.y, -360.f, 360.f);
+	ImGui::SliderFloat("World Z", &modelSettings.rotation.z, -360.f, 360.f);
 	ImGui::Text("Camera Position");
-	ImGui::SliderFloat(
-		"Camera X",
-		&modelSettings.pos.x,
-		-50.f,
-		50.f);
-	ImGui::SliderFloat(
-		"Camera Y",
-		&modelSettings.pos.y,
-		-50.f,
-		50.f);
-	ImGui::SliderFloat(
-		"Camera Z",
-		&modelSettings.pos.z,
-		-50.f,
-		50.f);
-	bool resetPressed = ImGui::Button(
-		"Reset",
-		{100.f,
-		 25.f});
+	ImGui::SliderFloat("Camera X", &modelSettings.pos.x, -50.f, 50.f);
+	ImGui::SliderFloat("Camera Y", &modelSettings.pos.y, -50.f, 50.f);
+	ImGui::SliderFloat("Camera Z", &modelSettings.pos.z, -50.f, 50.f);
+	bool resetPressed = ImGui::Button("Reset", {100.f, 25.f});
 	ImGui::End();
 
 	// IMGUI END NEW FRAME
 
-	ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
+	ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z),
+						   glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
 
 	uint32_t imageIndex;
-	std::tie(
-		res,
-		imageIndex) = swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
+	std::tie(res, imageIndex) =
+		swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
 
-	pbr::Frame::begin(
-		commandBuffers.at(currentFrame),
-		pipeline,
-		pipelineLayout,
-		vertexBuffer,
-		indexBuffer,
-		descriptorSets);
+	pbr::Frame::begin(commandBuffers.at(currentFrame), pipeline, pipelineLayout, vertexBuffer, indexBuffer);
 
-	pbr::Frame::beginRenderPass(
-		commandBuffers.at(currentFrame),
-		renderPass,
-		frameBuffers[imageIndex],
-		clearValues,
-		renderArea);
+	pbr::Frame::beginRenderPass(commandBuffers.at(currentFrame), renderPass, frameBuffers[imageIndex], clearValues,
+								renderArea);
 
-	vk::Viewport viewport{
-		static_cast<float>(renderArea.offset.x),
-		static_cast<float>(renderArea.extent.height),
-		static_cast<float>(renderArea.extent.width),
-		-static_cast<float>(renderArea.extent.height),
-		0,
-		1};
+	vk::Viewport viewport{static_cast<float>(renderArea.offset.x),
+						  static_cast<float>(renderArea.extent.height),
+						  static_cast<float>(renderArea.extent.width),
+						  -static_cast<float>(renderArea.extent.height),
+						  0,
+						  1};
 
 	commandBuffers[currentFrame].setScissor(0, renderArea);
 	commandBuffers[currentFrame].setViewport(0, viewport);
@@ -249,8 +195,9 @@ void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
 	{
 		ubo.model = model.getModel();
 		ubo.view = view;
-		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
-		model.draw(*commandBuffers[currentFrame]);
+		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout,
+						   VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
+		model.draw(*commandBuffers[currentFrame], *pipelineLayout);
 	}
 
 	ImGui::Render();
@@ -270,9 +217,7 @@ void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
 	submitInfo.setSignalSemaphoreCount(1);
 	submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
 
-	queue.submit(
-		submitInfo,
-		*inFlightFences[currentFrame]);
+	queue.submit(submitInfo, *inFlightFences[currentFrame]);
 
 	vk::PresentInfoKHR presentInfo;
 	presentInfo.setSwapchainCount(1);
@@ -292,22 +237,21 @@ void Renderer::initializeImGui()
 
 	ImGui_ImplGlfw_InitForVulkan(window, true);
 
-	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{
-		*instance,
-		*physicalDevice,
-		*device,
-		static_cast<uint32_t>(queueFamilyGraphicsIndex),
-		*queue,
-		*pipelineCache,
-		*descriptorPool,
-		0,
-		swapChainSurfaceCapabilities.minImageCount,
-		swapChainSurfaceCapabilities.minImageCount,
-		static_cast<VkSampleCountFlagBits>(msaaSamples),
-		false,
-		static_cast<VkFormat>(swapChainFormat.format),
-		nullptr,
-		nullptr};
+	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{*instance,
+													  *physicalDevice,
+													  *device,
+													  static_cast<uint32_t>(queueFamilyGraphicsIndex),
+													  *queue,
+													  *pipelineCache,
+													  *descriptorPool,
+													  0,
+													  swapChainSurfaceCapabilities.minImageCount,
+													  swapChainSurfaceCapabilities.minImageCount,
+													  static_cast<VkSampleCountFlagBits>(msaaSamples),
+													  false,
+													  static_cast<VkFormat>(swapChainFormat.format),
+													  nullptr,
+													  nullptr};
 
 	ImGui_ImplVulkan_Init(&imGuiImplVulkanInitInfo, *renderPass);
 
@@ -320,60 +264,7 @@ void Renderer::initializeImGui()
 
 Texture Renderer::createTexture(const char *path)
 {
-	return Texture{
-		device,
-		physicalDevice,
-		commandBuffers[0],
-		queue,
-		path};
-}
-
-void Renderer::updateDescriptorSets(const Texture &tex)
-{
-	std::array<vk::WriteDescriptorSet, 3> writeDescriptorSets;
-
-	for (int i = 0; i < framesInFlight; i++)
-	{
-		vk::DescriptorBufferInfo descriptorBufferInfo;
-		descriptorBufferInfo.setBuffer(uniformBuffers[i]);
-		descriptorBufferInfo.setOffset(0);
-		descriptorBufferInfo.setRange(sizeof(UniformData));
-
-		writeDescriptorSets.at(i).setBufferInfo(descriptorBufferInfo);
-		writeDescriptorSets.at(i).setDescriptorCount(1);
-		writeDescriptorSets.at(i).setDescriptorType(vk::DescriptorType::eUniformBuffer);
-		writeDescriptorSets.at(i).setDstArrayElement(0);
-		writeDescriptorSets.at(i).setDstBinding(0);
-		writeDescriptorSets.at(i).setDstSet(descriptorSets[0]);
-	}
-
-	vk::DescriptorImageInfo descriptorImageInfo;
-	descriptorImageInfo.setImageView(tex.getImageView());
-	descriptorImageInfo.setSampler(tex.getSampler());
-	descriptorImageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-
-	writeDescriptorSets.at(2).setImageInfo(descriptorImageInfo);
-	writeDescriptorSets.at(2).setDescriptorCount(1);
-	writeDescriptorSets.at(2).setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	writeDescriptorSets.at(2).setDstArrayElement(0);
-	writeDescriptorSets.at(2).setDstBinding(1);
-	writeDescriptorSets.at(2).setDstSet(descriptorSets[0]);
-
-	device.updateDescriptorSets(writeDescriptorSets, nullptr);
-}
-
-void Renderer::createDescriptorObjects()
-{
-	descriptorPool = util::createDescriptorPool(device);
-	auto ds = util::createDescriptorSets(device, descriptorPool, descriptorSetLayout, 1);
-
-	auto &descriptorSetRef = descriptorSets;
-
-	std::for_each(ds.begin(), ds.end(),
-				  [&descriptorSetRef](vk::raii::DescriptorSet &current) mutable
-				  {
-					  descriptorSetRef.push_back(current.release());
-				  });
+	return Texture{device, physicalDevice, commandBuffers[0], queue, path};
 }
 
 void Renderer::createSyncObjects()
@@ -389,51 +280,26 @@ void Renderer::createSyncObjects()
 	}
 }
 
-void Renderer::uploadUniformData(const UniformData &uniformData, int frame)
-{
-	memcpy(uniformBufferPtr[frame], &uniformData, sizeof(UniformData));
-}
-
-void Renderer::createUniformBuffers()
-{
-	VkBufferCreateInfo bufferCreateInfo{};
-	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	bufferCreateInfo.size = sizeof(UniformData);
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-	VmaAllocationCreateInfo allocationCreateInfo{};
-	allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	for (int i = 0; i < framesInFlight; i++)
-	{
-		VkBuffer buffer;
-		VmaAllocation allocation;
-		void *bufferPtr;
-		vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &allocationCreateInfo, &buffer, &allocation, nullptr);
-		vmaMapMemory(vmaAllocator, allocation, &bufferPtr);
-
-		uniformBuffers.push_back(buffer);
-		uniformBufferPtr.push_back(bufferPtr);
-		uniformBufferAllocations.push_back(allocation);
-	}
-}
-
 void Renderer::createSwapChain()
 {
 	swapChainFormat = util::selectSwapChainFormat(physicalDevice, surface);
 	swapChainSurfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-	std::tie(swapChain, swapChainCreateInfo) = util::createSwapChain(device, physicalDevice, surface, swapChainFormat, swapChainSurfaceCapabilities);
+	std::tie(swapChain, swapChainCreateInfo) =
+		util::createSwapChain(device, physicalDevice, surface, swapChainFormat, swapChainSurfaceCapabilities);
 	swapChainImages = swapChain.getImages();
-	swapChainImageViews = util::createImageViews(device, swapChainImages, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
+	swapChainImageViews =
+		util::createImageViews(device, swapChainImages, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer::createMultisampledImageTarget()
 {
-	multisampledImage = util::createImage2(vmaAllocator, swapChainFormat.format, vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1}, 1, msaaSamples, vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
+	multisampledImage = util::createImage2(
+		vmaAllocator, swapChainFormat.format,
+		vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1}, 1, msaaSamples,
+		vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
 
-	multisampledImageView = util::createImageView2(*device, multisampledImage.handle, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
+	multisampledImageView = util::createImageView2(*device, multisampledImage.handle, swapChainFormat.format,
+												   vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer::createDepthBuffers()
@@ -447,32 +313,22 @@ void Renderer::createDepthBuffers()
 	{
 		vk::raii::DeviceMemory depthImageMemory{nullptr};
 		vk::raii::Image depthImage{nullptr};
-		std::tie(
-			depthImage,
-			depthImageMemory) = util::createImage(device,
-												  physicalDevice,
-												  vk::ImageTiling::eOptimal,
-												  vk::ImageUsageFlagBits::eDepthStencilAttachment,
-												  depthImageFormat,
-												  {swapChainSurfaceCapabilities.currentExtent.width,
-												   swapChainSurfaceCapabilities.currentExtent.height,
-												   1},
-												  vk::ImageType::e2D,
-												  vk::MemoryPropertyFlagBits::eDeviceLocal,
-												  msaaSamples);
+		std::tie(depthImage, depthImageMemory) = util::createImage(
+			device, physicalDevice, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			depthImageFormat,
+			{swapChainSurfaceCapabilities.currentExtent.width, swapChainSurfaceCapabilities.currentExtent.height, 1},
+			vk::ImageType::e2D, vk::MemoryPropertyFlagBits::eDeviceLocal, msaaSamples);
 		depthImageMemorys.push_back(std::move(depthImageMemory));
 		depthImagesTemp.push_back(*depthImage);
 		depthImages.push_back(std::move(depthImage));
 	}
 
-	depthImageViews = util::createImageViews(
-		device,
-		depthImagesTemp,
-		depthImageFormat,
-		vk::ImageAspectFlagBits::eDepth);
+	depthImageViews =
+		util::createImageViews(device, depthImagesTemp, depthImageFormat, vk::ImageAspectFlagBits::eDepth);
 }
 
 Model Renderer::createModel(const char *path)
 {
-	return Model(vmaAllocator, *device, *queue, *commandBuffers[0], path);
+	return Model(vmaAllocator, *device, *queue, *commandBuffers[0], *descriptorPool, *descriptorSetLayout, sampler,
+				 path);
 }
