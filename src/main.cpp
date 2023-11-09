@@ -214,5 +214,7 @@ int main()
 
 	renderer.destroy();
 
+	glfwTerminate();
+
 	return 0;
 }

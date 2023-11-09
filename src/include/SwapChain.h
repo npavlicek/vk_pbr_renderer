@@ -41,10 +41,22 @@ class SwapChain
 		return presentMode;
 	}
 
+	const std::vector<vk::Image> &getImages() const
+	{
+		return swapChainImages;
+	}
+
+	const std::vector<vk::ImageView> &getImageViews() const
+	{
+		return swapChainImageViews;
+	}
+
   private:
 	vk::SwapchainKHR swapChain;
 	vk::SurfaceFormatKHR surfaceFormat;
 	vk::PresentModeKHR presentMode;
+	std::vector<vk::Image> swapChainImages;
+	std::vector<vk::ImageView> swapChainImageViews;
 
 	void selectFormat(const SwapChainCreateInfo &createInfo);
 	void selectPresentMode(const SwapChainCreateInfo &createInfo);

@@ -29,6 +29,27 @@ void SwapChain::create(const SwapChainCreateInfo &createInfo)
 	swapChainCreateInfo.setClipped(vk::True);
 
 	swapChain = createInfo.device.createSwapchainKHR(swapChainCreateInfo);
+
+	swapChainImages = createInfo.device.getSwapchainImagesKHR(swapChain);
+
+	vk::ImageSubresourceRange sr;
+	sr.setAspectMask(vk::ImageAspectFlagBits::eColor);
+	sr.setBaseArrayLayer(0);
+	sr.setBaseMipLevel(0);
+	sr.setLevelCount(1);
+	sr.setLayerCount(1);
+
+	vk::ImageViewCreateInfo imageViewCreateInfo;
+	imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
+	imageViewCreateInfo.setComponents(vk::ComponentSwizzle{});
+	imageViewCreateInfo.setFormat(surfaceFormat.format);
+	imageViewCreateInfo.setSubresourceRange(sr);
+
+	for (const auto &image : swapChainImages)
+	{
+		imageViewCreateInfo.setImage(image);
+		swapChainImageViews.push_back(createInfo.device.createImageView(imageViewCreateInfo));
+	}
 }
 
 void SwapChain::destroy(const vk::Device &device)

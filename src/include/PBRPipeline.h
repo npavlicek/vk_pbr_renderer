@@ -12,9 +12,9 @@ namespace N
 {
 struct PBRPipelineCreateInfo
 {
-	vk::Device &device;
-	vk::SampleCountFlagBits &samples;
-	vk::RenderPass &renderPass;
+	vk::Device device;
+	vk::SampleCountFlagBits samples;
+	vk::RenderPass renderPass;
 };
 
 struct MVPPushConstant

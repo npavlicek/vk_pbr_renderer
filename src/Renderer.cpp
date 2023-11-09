@@ -1,7 +1,10 @@
 #include "Renderer.h"
+#include "PBRPipeline.h"
+#include "RenderPass.h"
 #include "SwapChain.h"
 #include "Util.h"
 #include <GLFW/glfw3.h>
+#include <stdexcept>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
@@ -35,6 +38,9 @@ Renderer::Renderer(GLFWwindow *window)
 
 	glfwCreateWindowSurface(instance, window, nullptr, reinterpret_cast<VkSurfaceKHR *>(&surface));
 
+	detectSampleCounts();
+	selectDepthFormat();
+
 	N::SwapChainCreateInfo swapChainCreateInfo{};
 	swapChainCreateInfo.device = device;
 	swapChainCreateInfo.physicalDevice = physicalDevice;
@@ -42,21 +48,23 @@ Renderer::Renderer(GLFWwindow *window)
 	swapChainCreateInfo.surface = surface;
 	swapChain.create(swapChainCreateInfo);
 
-	detectSampleCounts();
+	N::RenderPassCreateInfo renderPassCreateInfo;
+	renderPassCreateInfo.device = device;
+	renderPassCreateInfo.surfaceFormat = swapChain.getSurfaceFormat().format;
+	renderPassCreateInfo.depthFormat = depthFormat;
+	renderPassCreateInfo.samples = samples;
+	renderPass.create(renderPassCreateInfo);
 
-	createMultisampledImageTarget();
+	N::PBRPipelineCreateInfo pipelineCreateInfo;
+	pipelineCreateInfo.device = device;
+	pipelineCreateInfo.renderPass = renderPass.get();
+	pipelineCreateInfo.samples = samples;
+	pipeline.create(pipelineCreateInfo);
 
-	createDepthBuffers();
+	createDepthObjects();
+	createRenderTargets();
 
-	createDescriptorSetLayouts();
-
-	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat, msaaSamples);
-	shaderModules = util::createShaderModules(device, "shaders/vert.spv", "shaders/frag.spv");
-	std::tie(pipeline, pipelineLayout, pipelineCache) =
-		util::createPipeline(device, renderPass, shaderModules, msaaSamples);
-
-	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews,
-											multisampledImageView, swapChainSurfaceCapabilities);
+	createFrameBuffers();
 
 	descriptorPool = util::createDescriptorPool(device);
 
@@ -138,14 +146,16 @@ Renderer::~Renderer()
 {
 	device.waitIdle();
 
-	(*device).destroySampler(sampler);
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		device.destroyFramebuffer(frameBuffers.at(i));
 
-	(*device).destroyImageView(multisampledImageView);
+		device.destroyImageView(depthImages.at(i).imageView);
+		vmaDestroyImage(vmaAllocator, depthImages.at(i).image, depthImages.at(i).imageAllocation);
 
-	vmaDestroyBuffer(vmaAllocator, renderInfoBuffer, renderInfoBufferAlloc);
-	vmaDestroyImage(vmaAllocator, multisampledImage.handle, multisampledImage.allocation);
-
-	// NEW BELOW
+		device.destroyImageView(renderTargets.at(i).imageView);
+		vmaDestroyImage(vmaAllocator, renderTargets.at(i).image, renderTargets.at(i).imageAllocation);
+	}
 
 	vmaDestroyAllocator(vmaAllocator);
 
@@ -153,6 +163,10 @@ Renderer::~Renderer()
 	{
 		device.destroyCommandPool(cur);
 	}
+
+	swapChain.destroy(device);
+	pipeline.destroy(device);
+	renderPass.destroy(device);
 
 	device.destroy();
 
@@ -164,6 +178,28 @@ Renderer::~Renderer()
 	instance.destroy();
 }
 
+void Renderer::selectDepthFormat()
+{
+	std::vector<vk::Format> requestedFormats{vk::Format::eD16Unorm, vk::Format::eD32Sfloat};
+
+	bool supported = true;
+	for (const auto &format : requestedFormats)
+	{
+		if (!(physicalDevice.getFormatProperties(format).optimalTilingFeatures &
+			  vk::FormatFeatureFlagBits::eDepthStencilAttachment))
+		{
+			supported = false;
+		}
+	}
+
+	if (!supported)
+	{
+		throw std::runtime_error("requested depth buffer format not supported!");
+	}
+
+	depthFormat = vk::Format::eD32Sfloat;
+}
+
 void Renderer::createCommandPools()
 {
 	vk::CommandPoolCreateInfo commandPoolCreateInfo;
@@ -173,6 +209,28 @@ void Renderer::createCommandPools()
 	for (int i = 0; i < framesInFlight; i++)
 	{
 		commandPools.push_back(device.createCommandPool(commandPoolCreateInfo));
+	}
+}
+
+void Renderer::createFrameBuffers()
+{
+	auto extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
+
+	vk::FramebufferCreateInfo frameBufferCreateInfo;
+	frameBufferCreateInfo.setRenderPass(renderPass.get());
+	frameBufferCreateInfo.setLayers(1);
+	frameBufferCreateInfo.setWidth(extent.width);
+	frameBufferCreateInfo.setHeight(extent.height);
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		std::array<vk::ImageView, 3> attachments{renderTargets.at(i).imageView, depthImages.at(i).imageView,
+												 swapChain.getImageViews().at(i)};
+
+		frameBufferCreateInfo.setAttachmentCount(attachments.size());
+		frameBufferCreateInfo.setAttachments(attachments);
+
+		frameBuffers.push_back(device.createFramebuffer(frameBufferCreateInfo));
 	}
 }
 
@@ -232,7 +290,7 @@ void Renderer::createDevice()
 	std::vector<float> queuePriorities(queueFamilyProperties.queueCount, 1.f);
 
 	vk::DeviceQueueCreateInfo deviceQueueCreateInfo;
-	deviceQueueCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
+	deviceQueueCreateInfo.setQueueFamilyIndex(graphicsQueueIndex);
 	deviceQueueCreateInfo.setQueueCount(queueFamilyProperties.queueCount);
 	deviceQueueCreateInfo.setQueuePriorities(queuePriorities);
 
@@ -277,34 +335,14 @@ void Renderer::detectSampleCounts()
 	vk::SampleCountFlags depthSamples = physicalDevice.getProperties().limits.framebufferDepthSampleCounts;
 	vk::SampleCountFlags combined = colorSamples & depthSamples;
 
-	// TODO: convert to bit shift detection
-	if (combined & vk::SampleCountFlagBits::e64)
+	for (int i = 64; i > 0; i >>= 1)
 	{
-		msaaSamples = vk::SampleCountFlagBits::e64;
-	}
-	else if (combined & vk::SampleCountFlagBits::e32)
-	{
-		msaaSamples = vk::SampleCountFlagBits::e32;
-	}
-	else if (combined & vk::SampleCountFlagBits::e16)
-	{
-		msaaSamples = vk::SampleCountFlagBits::e16;
-	}
-	else if (combined & vk::SampleCountFlagBits::e8)
-	{
-		msaaSamples = vk::SampleCountFlagBits::e8;
-	}
-	else if (combined & vk::SampleCountFlagBits::e4)
-	{
-		msaaSamples = vk::SampleCountFlagBits::e4;
-	}
-	else if (combined & vk::SampleCountFlagBits::e2)
-	{
-		msaaSamples = vk::SampleCountFlagBits::e2;
-	}
-	else
-	{
-		msaaSamples = vk::SampleCountFlagBits::e1;
+		vk::SampleCountFlagBits current = static_cast<vk::SampleCountFlagBits>(i);
+		if (combined & current)
+		{
+			samples = current;
+			break;
+		}
 	}
 }
 
@@ -315,8 +353,6 @@ void Renderer::destroy()
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext(imGuiContext);
-
-	glfwTerminate();
 }
 
 void Renderer::destroyModel(Model &model)
@@ -469,51 +505,97 @@ void Renderer::createSyncObjects()
 	}
 }
 
-void Renderer::createSwapChain()
+void Renderer::createDepthObjects()
 {
-	swapChainFormat = util::selectSwapChainFormat(physicalDevice, surface);
-	swapChainSurfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-	std::tie(swapChain, swapChainCreateInfo) =
-		util::createSwapChain(device, physicalDevice, surface, swapChainFormat, swapChainSurfaceCapabilities);
-	swapChainImages = swapChain.getImages();
-	swapChainImageViews =
-		util::createImageViews(device, swapChainImages, swapChainFormat.format, vk::ImageAspectFlagBits::eColor);
-}
+	auto extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
+	vk::ImageCreateInfo imageCreateInfo;
+	imageCreateInfo.setImageType(vk::ImageType::e2D);
+	imageCreateInfo.setArrayLayers(1);
+	imageCreateInfo.setExtent(vk::Extent3D{extent.width, extent.height, 1});
+	imageCreateInfo.setFormat(depthFormat);
+	imageCreateInfo.setInitialLayout(vk::ImageLayout::eUndefined);
+	imageCreateInfo.setMipLevels(1);
+	imageCreateInfo.setSamples(samples);
+	imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+	imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
+	imageCreateInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
 
-void Renderer::createMultisampledImageTarget()
-{
-	multisampledImage = util::createImage2(
-		vmaAllocator, swapChainFormat.format,
-		vk::Extent3D{swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1}, 1, msaaSamples,
-		vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
+	VmaAllocationCreateInfo allocationCreateInfo;
+	allocationCreateInfo.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-	multisampledImageView = util::createImageView2(*device, multisampledImage.handle, swapChainFormat.format,
-												   vk::ImageAspectFlagBits::eColor);
-}
+	vk::ImageSubresourceRange subresource;
+	subresource.setLevelCount(1);
+	subresource.setLayerCount(1);
+	subresource.setBaseArrayLayer(0);
+	subresource.setBaseMipLevel(0);
+	subresource.setAspectMask(vk::ImageAspectFlagBits::eDepth);
 
-void Renderer::createDepthBuffers()
-{
-	depthImageFormat = util::selectDepthFormat(physicalDevice);
+	vk::ImageViewCreateInfo imageViewCreateInfo;
+	imageViewCreateInfo.setImage(cur.image);
+	imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
+	imageViewCreateInfo.setFormat(depthFormat);
+	imageViewCreateInfo.setComponents(vk::ComponentMapping{});
+	imageViewCreateInfo.setSubresourceRange(subresource);
 
-	std::vector<vk::Image> depthImagesTemp;
-
-	// TODO: MODIFY THE RANGE OF THIS LOOP TO MATCH HOWEVER MANY IMAGES WE GET ON THE SWAPCHAIN
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < framesInFlight; i++)
 	{
-		vk::raii::DeviceMemory depthImageMemory{nullptr};
-		vk::raii::Image depthImage{nullptr};
-		std::tie(depthImage, depthImageMemory) = util::createImage(
-			device, physicalDevice, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment,
-			depthImageFormat,
-			{swapChainSurfaceCapabilities.currentExtent.width, swapChainSurfaceCapabilities.currentExtent.height, 1},
-			vk::ImageType::e2D, vk::MemoryPropertyFlagBits::eDeviceLocal, msaaSamples);
-		depthImageMemorys.push_back(std::move(depthImageMemory));
-		depthImagesTemp.push_back(*depthImage);
-		depthImages.push_back(std::move(depthImage));
-	}
+		ImageObject cur;
 
-	depthImageViews =
-		util::createImageViews(device, depthImagesTemp, depthImageFormat, vk::ImageAspectFlagBits::eDepth);
+		vmaCreateImage(vmaAllocator, reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo), &allocationCreateInfo,
+					   &cur.image, &cur.imageAllocation, cur.imageAllocationInfo);
+
+		cur.imageView = device.createImageView(imageViewCreateInfo);
+
+		depthImages.push_back(cur);
+	}
+}
+
+void Renderer::createRenderTargets()
+{
+	auto extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
+
+	vk::ImageCreateInfo imageCreateInfo;
+	imageCreateInfo.setImageType(vk::ImageType::e2D);
+	imageCreateInfo.setArrayLayers(1);
+	imageCreateInfo.setExtent(vk::Extent3D{extent.width, extent.height, 1});
+	imageCreateInfo.setFormat(swapChain.getSurfaceFormat().format);
+	imageCreateInfo.setInitialLayout(vk::ImageLayout::eUndefined);
+	imageCreateInfo.setMipLevels(1);
+	imageCreateInfo.setSamples(samples);
+	imageCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+	imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
+	imageCreateInfo.setUsage(vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
+
+	VmaAllocationCreateInfo allocCreateInfo;
+	allocCreateInfo.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	allocCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+
+	vk::ImageSubresourceRange subresource;
+	subresource.setAspectMask(vk::ImageAspectFlagBits::eColor);
+	subresource.setBaseArrayLayer(0);
+	subresource.setBaseMipLevel(0);
+	subresource.setLayerCount(1);
+	subresource.setLevelCount(1);
+
+	vk::ImageViewCreateInfo viewCreateInfo;
+	viewCreateInfo.setImage(cur.image);
+	viewCreateInfo.setViewType(vk::ImageViewType::e2D);
+	viewCreateInfo.setComponents(vk::ComponentSwizzle{});
+	viewCreateInfo.setFormat(swapChain.getSurfaceFormat().format);
+	viewCreateInfo.setSubresourceRange(subresource);
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		ImageObject cur;
+
+		vmaCreateImage(vmaAllocator, reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo), &allocCreateInfo,
+					   &cur.image, &cur.imageAllocation, &cur.imageAllocationInfo);
+
+		cur.imageView = device.createImageView(viewCreateInfo);
+
+		renderTargets.push_back(cur);
+	}
 }
 
 Model Renderer::createModel(const char *path)

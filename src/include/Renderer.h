@@ -5,6 +5,8 @@
 #include "CommandBuffer.h"
 #include "Frame.h"
 #include "Model.h"
+#include "PBRPipeline.h"
+#include "RenderPass.h"
 #include "SwapChain.h"
 #include "Texture.h"
 #include "Util.h"
@@ -21,6 +23,7 @@
 // #include <glm/gtx/string_cast.hpp>
 
 #include <vma/vk_mem_alloc.h>
+#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_raii.hpp>
 #include <vulkan/vulkan_structs.hpp>
@@ -51,6 +54,14 @@ struct RenderInfo
 	glm::vec3 lightPos[4];
 };
 
+struct ImageObject
+{
+	vk::Image image;
+	VmaAllocation imageAllocation;
+	VmaAllocationInfo imageAllocationInfo;
+	vk::ImageView imageView;
+};
+
 class Renderer
 {
   public:
@@ -68,53 +79,28 @@ class Renderer
 	void resetCommandBuffers();
 
   private:
-	// TODO: Convert back to non raii vk handles
 	vk::Instance instance;
 	vk::DebugUtilsMessengerEXT debugMessenger;
 	vk::PhysicalDevice physicalDevice;
 	vk::Device device;
 	vk::SurfaceKHR surface;
 	N::SwapChain swapChain;
+	N::RenderPass renderPass;
 	vk::Queue graphicsQueue;
+	N::PBRPipeline pipeline;
+
+	vk::Sampler sampler;
 
 	int graphicsQueueIndex;
+	vk::SampleCountFlagBits samples;
+	vk::Format depthFormat;
 
 	std::vector<vk::CommandPool> commandPools;
+	std::vector<ImageObject> depthImages;
+	std::vector<ImageObject> renderTargets;
+	std::vector<vk::Framebuffer> frameBuffers;
 
 	VmaAllocator vmaAllocator;
-
-	vk::raii::Pipeline pipeline{nullptr};
-	vk::raii::PipelineLayout pipelineLayout{nullptr};
-	vk::raii::PipelineCache pipelineCache{nullptr};
-	vk::raii::DescriptorSetLayout descriptorSetLayout{nullptr};
-	vk::raii::RenderPass renderPass{nullptr};
-	vk::raii::Queue queue{nullptr};
-	vk::raii::DescriptorPool descriptorPool{nullptr};
-	vk::raii::DescriptorSetLayout textureSetLayout;
-	vk::raii::DescriptorSetLayout renderInfoLayout;
-
-	std::vector<vk::Image> swapChainImages;
-	std::vector<vk::raii::ImageView> swapChainImageViews;
-	std::vector<vk::raii::CommandBuffer> commandBuffers;
-	std::vector<vk::raii::ShaderModule> shaderModules;
-	std::vector<vk::raii::Framebuffer> frameBuffers;
-	std::vector<vk::raii::Image> depthImages;
-	std::vector<vk::raii::DeviceMemory> depthImageMemorys;
-	std::vector<vk::raii::ImageView> depthImageViews;
-	std::vector<vk::raii::Semaphore> imageAvailableSemaphores;
-	std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
-	std::vector<vk::raii::Fence> inFlightFences;
-
-	vk::SurfaceFormatKHR swapChainFormat;
-	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
-	vk::SurfaceCapabilitiesKHR swapChainSurfaceCapabilities;
-	vk::Format depthImageFormat;
-	vk::SampleCountFlagBits msaaSamples;
-	vk::Sampler sampler;
-	std::vector<vk::raii::DescriptorSet> descriptorSet;
-
-	util::Image multisampledImage;
-	vk::ImageView multisampledImageView;
 
 	VmaAllocation vertexBufferAllocation;
 	vk::Buffer vertexBuffer;
@@ -155,16 +141,16 @@ class Renderer
 	void createDevice();
 	void createCommandPools();
 	void createSurface();
-	void createSwapChain();
+	void detectSampleCounts();
+	void selectDepthFormat();
+	void createDepthObjects();
+	void createRenderTargets();
+	void createFrameBuffers();
 
-	void createDescriptorSetLayouts();
 	void createDescriptorSets();
 	void updateDescriptorSets();
 	void createUniformBuffers();
 	void writeRenderInfo();
 	void createSyncObjects();
-	void createDepthBuffers();
-	void createMultisampledImageTarget();
-	void detectSampleCounts();
 	void initializeImGui();
 };

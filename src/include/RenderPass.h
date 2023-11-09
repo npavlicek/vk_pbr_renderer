@@ -7,10 +7,10 @@ namespace N
 {
 struct RenderPassCreateInfo
 {
-	vk::Device &device;
-	vk::SampleCountFlagBits &samples;
-	vk::Format &surfaceFormat;
-	vk::Format &depthFormat;
+	vk::Device device;
+	vk::SampleCountFlagBits samples;
+	vk::Format surfaceFormat;
+	vk::Format depthFormat;
 };
 
 class RenderPass
