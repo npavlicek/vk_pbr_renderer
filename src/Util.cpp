@@ -556,23 +556,7 @@ vk::raii::RenderPass createRenderPass(vk::raii::Device &device, vk::SurfaceForma
 vk::raii::DescriptorPool createDescriptorPool(vk::raii::Device &device)
 {
 	// TODO fix the sizes for these descriptor pools
-	std::vector<vk::DescriptorPoolSize> descriptorPoolSizes{{vk::DescriptorType::eSampler, 1000},
-															{vk::DescriptorType::eCombinedImageSampler, 1000},
-															{vk::DescriptorType::eSampledImage, 1000},
-															{vk::DescriptorType::eStorageImage, 1000},
-															{vk::DescriptorType::eUniformTexelBuffer, 1000},
-															{vk::DescriptorType::eStorageTexelBuffer, 1000},
-															{vk::DescriptorType::eUniformBuffer, 1000},
-															{vk::DescriptorType::eStorageBuffer, 1000},
-															{vk::DescriptorType::eUniformBufferDynamic, 1000},
-															{vk::DescriptorType::eStorageBufferDynamic, 1000},
-															{vk::DescriptorType::eInputAttachment, 1000}};
 
-	vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{};
-	descriptorPoolCreateInfo.setFlags(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
-	descriptorPoolCreateInfo.setPoolSizeCount(descriptorPoolSizes.size());
-	descriptorPoolCreateInfo.setPoolSizes(*descriptorPoolSizes.data());
-	descriptorPoolCreateInfo.setMaxSets(1000);
 
 	return {device, descriptorPoolCreateInfo};
 }

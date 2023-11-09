@@ -88,6 +88,7 @@ class Renderer
 	N::RenderPass renderPass;
 	vk::Queue graphicsQueue;
 	N::PBRPipeline pipeline;
+	vk::DescriptorPool descriptorPool;
 
 	vk::Sampler sampler;
 
@@ -99,6 +100,9 @@ class Renderer
 	std::vector<ImageObject> depthImages;
 	std::vector<ImageObject> renderTargets;
 	std::vector<vk::Framebuffer> frameBuffers;
+
+	int framesInFlight = 2;
+	int currentFrame = 0;
 
 	VmaAllocator vmaAllocator;
 
@@ -131,10 +135,6 @@ class Renderer
 	ModelSettings modelSettings{{0.f, 5.f, 2.f}, {}};
 	// TODO: end temp
 
-	int queueFamilyGraphicsIndex;
-	int framesInFlight = 2;
-	int currentFrame = 0;
-
 	void createInstance();
 	void selectPhysicalDevice();
 	void selectGraphicsQueue();
@@ -146,6 +146,7 @@ class Renderer
 	void createDepthObjects();
 	void createRenderTargets();
 	void createFrameBuffers();
+	void createDescriptorPool();
 
 	void createDescriptorSets();
 	void updateDescriptorSets();

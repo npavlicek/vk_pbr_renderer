@@ -29,6 +29,8 @@ Renderer::Renderer(GLFWwindow *window)
 	// Utilize first command pool to initialize shit
 	// multithreaded asset loading?
 
+	createDescriptorPool();
+
 	VmaAllocatorCreateInfo vmaCreateInfo{};
 	vmaCreateInfo.device = device;
 	vmaCreateInfo.instance = instance;
@@ -146,6 +148,8 @@ Renderer::~Renderer()
 {
 	device.waitIdle();
 
+	device.destroyDescriptorPool(descriptorPool);
+
 	for (int i = 0; i < framesInFlight; i++)
 	{
 		device.destroyFramebuffer(frameBuffers.at(i));
@@ -198,6 +202,19 @@ void Renderer::selectDepthFormat()
 	}
 
 	depthFormat = vk::Format::eD32Sfloat;
+}
+
+void Renderer::createDescriptorPool()
+{
+	std::vector<vk::DescriptorPoolSize> poolSizes = {{vk::DescriptorType::eUniformBuffer, 100},
+													 {vk::DescriptorType::eCombinedImageSampler, 100}};
+
+	vk::DescriptorPoolCreateInfo createInfo;
+	createInfo.setMaxSets(100);
+	createInfo.setPoolSizeCount(poolSizes.size());
+	createInfo.setPoolSizes(poolSizes);
+
+	descriptorPool = device.createDescriptorPool(createInfo);
 }
 
 void Renderer::createCommandPools()
