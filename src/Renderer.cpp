@@ -1,5 +1,7 @@
 #include "Renderer.h"
+#include "SwapChain.h"
 #include "Util.h"
+#include <GLFW/glfw3.h>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
@@ -19,20 +21,26 @@ Renderer::Renderer(GLFWwindow *window)
 	graphicsQueue = device.getQueue(graphicsQueueIndex, 0);
 
 	createCommandPools();
-	// Command Buffers
+	// TODO: Command Buffers
 	// Have a frame object which creates its own buffers?
 	// Utilize first command pool to initialize shit
 	// multithreaded asset loading?
 
 	VmaAllocatorCreateInfo vmaCreateInfo{};
-	vmaCreateInfo.device = *device;
+	vmaCreateInfo.device = device;
 	vmaCreateInfo.instance = instance;
-	vmaCreateInfo.physicalDevice = *physicalDevice;
-	vmaCreateInfo.vulkanApiVersion = context.enumerateInstanceVersion();
+	vmaCreateInfo.physicalDevice = physicalDevice;
+	vmaCreateInfo.vulkanApiVersion = vk::enumerateInstanceVersion();
 	vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator);
 
-	surface = util::createSurface(instance, window);
-	createSwapChain();
+	glfwCreateWindowSurface(instance, window, nullptr, reinterpret_cast<VkSurfaceKHR *>(&surface));
+
+	N::SwapChainCreateInfo swapChainCreateInfo{};
+	swapChainCreateInfo.device = device;
+	swapChainCreateInfo.physicalDevice = physicalDevice;
+	swapChainCreateInfo.framesInFlight = framesInFlight;
+	swapChainCreateInfo.surface = surface;
+	swapChain.create(swapChainCreateInfo);
 
 	detectSampleCounts();
 
@@ -137,12 +145,18 @@ Renderer::~Renderer()
 	vmaDestroyBuffer(vmaAllocator, renderInfoBuffer, renderInfoBufferAlloc);
 	vmaDestroyImage(vmaAllocator, multisampledImage.handle, multisampledImage.allocation);
 
+	// NEW BELOW
+
 	vmaDestroyAllocator(vmaAllocator);
 
 	for (const auto &cur : commandPools)
 	{
 		device.destroyCommandPool(cur);
 	}
+
+	device.destroy();
+
+	instance.destroySurfaceKHR(surface);
 
 #ifdef ENABLE_VULKAN_VALIDATION_LAYERS
 	instance.destroyDebugUtilsMessengerEXT(debugMessenger);
@@ -263,6 +277,7 @@ void Renderer::detectSampleCounts()
 	vk::SampleCountFlags depthSamples = physicalDevice.getProperties().limits.framebufferDepthSampleCounts;
 	vk::SampleCountFlags combined = colorSamples & depthSamples;
 
+	// TODO: convert to bit shift detection
 	if (combined & vk::SampleCountFlagBits::e64)
 	{
 		msaaSamples = vk::SampleCountFlagBits::e64;

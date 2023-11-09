@@ -5,6 +5,7 @@
 #include "CommandBuffer.h"
 #include "Frame.h"
 #include "Model.h"
+#include "SwapChain.h"
 #include "Texture.h"
 #include "Util.h"
 #include "VkErrorHandling.h"
@@ -72,14 +73,16 @@ class Renderer
 	vk::DebugUtilsMessengerEXT debugMessenger;
 	vk::PhysicalDevice physicalDevice;
 	vk::Device device;
+	vk::SurfaceKHR surface;
+	N::SwapChain swapChain;
+	vk::Queue graphicsQueue;
 
 	int graphicsQueueIndex;
-	vk::Queue graphicsQueue;
 
 	std::vector<vk::CommandPool> commandPools;
 
-	vk::raii::SurfaceKHR surface{nullptr};
-	vk::raii::SwapchainKHR swapChain{nullptr};
+	VmaAllocator vmaAllocator;
+
 	vk::raii::Pipeline pipeline{nullptr};
 	vk::raii::PipelineLayout pipelineLayout{nullptr};
 	vk::raii::PipelineCache pipelineCache{nullptr};
@@ -112,8 +115,6 @@ class Renderer
 
 	util::Image multisampledImage;
 	vk::ImageView multisampledImageView;
-
-	VmaAllocator vmaAllocator;
 
 	VmaAllocation vertexBufferAllocation;
 	vk::Buffer vertexBuffer;
@@ -153,6 +154,8 @@ class Renderer
 	void selectGraphicsQueue();
 	void createDevice();
 	void createCommandPools();
+	void createSurface();
+	void createSwapChain();
 
 	void createDescriptorSetLayouts();
 	void createDescriptorSets();
@@ -160,7 +163,6 @@ class Renderer
 	void createUniformBuffers();
 	void writeRenderInfo();
 	void createSyncObjects();
-	void createSwapChain();
 	void createDepthBuffers();
 	void createMultisampledImageTarget();
 	void detectSampleCounts();
