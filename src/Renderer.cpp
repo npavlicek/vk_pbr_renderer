@@ -1,36 +1,32 @@
 #include "Renderer.h"
 #include "Util.h"
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_structs.hpp>
+
+#include "Validation.h"
 
 Renderer::Renderer(GLFWwindow *window)
 {
 	this->window = window;
 
-	context = vk::raii::Context{};
+	createInstance();
+	selectPhysicalDevice();
+	selectGraphicsQueue();
+	createDevice();
 
-	vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
-	debugUtilsMessengerCreateInfo.setMessageSeverity(
-		vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
-		vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning);
-	debugUtilsMessengerCreateInfo.setMessageType(
-		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
-		vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
-	debugUtilsMessengerCreateInfo.setPfnUserCallback(&VkResCheck::PFN_vkDebugUtilsMessengerCallbackEXT);
+	graphicsQueue = device.getQueue(graphicsQueueIndex, 0);
 
-	instance =
-		util::createInstance(context, "Vulkan PBR Renderer", "Vulkan PBR Renderer", debugUtilsMessengerCreateInfo);
-
-	debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfo);
-
-	physicalDevice = util::selectPhysicalDevice(instance);
-	queueFamilyGraphicsIndex = util::selectQueueFamily(physicalDevice);
-	device = util::createDevice(physicalDevice, queueFamilyGraphicsIndex);
-	queue = device.getQueue(queueFamilyGraphicsIndex, 0);
-	commandPool = util::createCommandPool(device, queueFamilyGraphicsIndex);
-	commandBuffers = util::createCommandBuffers(device, commandPool, framesInFlight);
+	createCommandPools();
+	// Command Buffers
+	// Have a frame object which creates its own buffers?
+	// Utilize first command pool to initialize shit
+	// multithreaded asset loading?
 
 	VmaAllocatorCreateInfo vmaCreateInfo{};
 	vmaCreateInfo.device = *device;
-	vmaCreateInfo.instance = *instance;
+	vmaCreateInfo.instance = instance;
 	vmaCreateInfo.physicalDevice = *physicalDevice;
 	vmaCreateInfo.vulkanApiVersion = context.enumerateInstanceVersion();
 	vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator);
@@ -44,15 +40,21 @@ Renderer::Renderer(GLFWwindow *window)
 
 	createDepthBuffers();
 
+	createDescriptorSetLayouts();
+
 	renderPass = util::createRenderPass(device, swapChainFormat, depthImageFormat, msaaSamples);
 	shaderModules = util::createShaderModules(device, "shaders/vert.spv", "shaders/frag.spv");
-	std::tie(pipeline, pipelineLayout, pipelineCache, descriptorSetLayout) =
+	std::tie(pipeline, pipelineLayout, pipelineCache) =
 		util::createPipeline(device, renderPass, shaderModules, msaaSamples);
 
 	frameBuffers = util::createFrameBuffers(device, renderPass, swapChainImageViews, depthImageViews,
 											multisampledImageView, swapChainSurfaceCapabilities);
 
 	descriptorPool = util::createDescriptorPool(device);
+
+	createDescriptorSets();
+	createUniformBuffers();
+	updateDescriptorSets();
 
 	createSyncObjects();
 	initializeImGui();
@@ -73,6 +75,57 @@ Renderer::Renderer(GLFWwindow *window)
 									  0.1f, 100.f);
 }
 
+void Renderer::createInstance()
+{
+	std::vector<const char *> enabledLayers{};
+	std::vector<const char *> enabledExtensions{};
+
+#ifdef ENABLE_VULKAN_VALIDATION_LAYERS
+	enabledLayers.push_back("VK_LAYER_KHRONOS_validation");
+	enabledLayers.push_back("VK_LAYER_LUNARG_monitor");
+	Validation::areLayersAvailable(enabledLayers);
+
+	vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo{};
+	debugUtilsMessengerCreateInfo.setMessageSeverity(
+		vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
+		vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning);
+	debugUtilsMessengerCreateInfo.setMessageType(
+		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+		vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+	debugUtilsMessengerCreateInfo.setPfnUserCallback(&VkResCheck::PFN_vkDebugUtilsMessengerCallbackEXT);
+
+	enabledExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+
+	// Add GLFW necessary extensions
+	uint32_t glfwExtensionCount = 0;
+	const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+	enabledExtensions.reserve(glfwExtensionCount);
+	for (int i = 0; i < static_cast<int>(glfwExtensionCount); i++)
+	{
+		enabledExtensions.push_back(glfwExtensions[i]);
+	}
+
+	vk::ApplicationInfo applicationInfo("VulkanEngine", 1, "VulkanEngine", 1, vk::ApiVersion13);
+
+	vk::InstanceCreateInfo instanceCreateInfo{};
+#ifdef ENABLE_VULKAN_VALIDATION_LAYERS
+	instanceCreateInfo.setPNext(&debugUtilsMessengerCreateInfo);
+#endif
+	instanceCreateInfo.setPApplicationInfo(&applicationInfo);
+	instanceCreateInfo.setEnabledLayerCount(enabledLayers.size());
+	instanceCreateInfo.setPEnabledLayerNames(enabledLayers);
+	instanceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
+	instanceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
+
+	instance = vk::createInstance(instanceCreateInfo);
+
+#ifdef ENABLE_VULKAN_VALIDATION_LAYERS
+	debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfo);
+#endif
+}
+
 Renderer::~Renderer()
 {
 	device.waitIdle();
@@ -81,9 +134,127 @@ Renderer::~Renderer()
 
 	(*device).destroyImageView(multisampledImageView);
 
+	vmaDestroyBuffer(vmaAllocator, renderInfoBuffer, renderInfoBufferAlloc);
 	vmaDestroyImage(vmaAllocator, multisampledImage.handle, multisampledImage.allocation);
 
 	vmaDestroyAllocator(vmaAllocator);
+
+	for (const auto &cur : commandPools)
+	{
+		device.destroyCommandPool(cur);
+	}
+
+#ifdef ENABLE_VULKAN_VALIDATION_LAYERS
+	instance.destroyDebugUtilsMessengerEXT(debugMessenger);
+#endif
+	instance.destroy();
+}
+
+void Renderer::createCommandPools()
+{
+	vk::CommandPoolCreateInfo commandPoolCreateInfo;
+	commandPoolCreateInfo.setQueueFamilyIndex(graphicsQueueIndex);
+	commandPoolCreateInfo.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+
+	for (int i = 0; i < framesInFlight; i++)
+	{
+		commandPools.push_back(device.createCommandPool(commandPoolCreateInfo));
+	}
+}
+
+void Renderer::createUniformBuffers()
+{
+	vk::BufferCreateInfo bufferCI{};
+	bufferCI.setUsage(vk::BufferUsageFlagBits::eUniformBuffer);
+	bufferCI.setSharingMode(vk::SharingMode::eExclusive);
+	bufferCI.setSize(sizeof(renderInfo));
+
+	VmaAllocationCreateInfo vmaAllocCI{};
+	vmaAllocCI.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	vmaAllocCI.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT |
+					   VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	vmaCreateBuffer(vmaAllocator, reinterpret_cast<VkBufferCreateInfo *>(&bufferCI), &vmaAllocCI, &renderInfoBuffer,
+					&renderInfoBufferAlloc, &renderInfoBufferAllocInfo);
+}
+
+void Renderer::updateDescriptorSets()
+{
+	vk::DescriptorBufferInfo bufferI;
+	bufferI.setBuffer(renderInfoBuffer);
+	bufferI.setOffset(0);
+	bufferI.setRange(sizeof(renderInfo));
+
+	vk::WriteDescriptorSet writeSet;
+	writeSet.setDescriptorCount(1);
+	writeSet.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+	writeSet.setDstArrayElement(0);
+	writeSet.setDstSet(*descriptorSet[0]);
+	writeSet.setDstBinding(4);
+	writeSet.setBufferInfo(bufferI);
+
+	device.updateDescriptorSets(writeSet, nullptr);
+}
+
+// TODO: make this function more specific for what gpu features i need
+void Renderer::selectPhysicalDevice()
+{
+	auto physicalDevices = instance.enumeratePhysicalDevices();
+
+	for (const auto &cur : physicalDevices)
+	{
+		if (cur.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
+		{
+			physicalDevice = cur;
+			break;
+		}
+	}
+}
+
+void Renderer::createDevice()
+{
+	auto queueFamilyProperties = physicalDevice.getQueueFamilyProperties()[graphicsQueueIndex];
+
+	std::vector<float> queuePriorities(queueFamilyProperties.queueCount, 1.f);
+
+	vk::DeviceQueueCreateInfo deviceQueueCreateInfo;
+	deviceQueueCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
+	deviceQueueCreateInfo.setQueueCount(queueFamilyProperties.queueCount);
+	deviceQueueCreateInfo.setQueuePriorities(queuePriorities);
+
+	std::vector<const char *> enabledExtensions{"VK_KHR_swapchain"};
+
+	vk::PhysicalDeviceFeatures physicalDeviceFeatures;
+	physicalDeviceFeatures.setSamplerAnisotropy(vk::True);
+	physicalDeviceFeatures.setSampleRateShading(vk::True);
+
+	vk::DeviceCreateInfo deviceCreateInfo;
+	deviceCreateInfo.setQueueCreateInfoCount(1);
+	deviceCreateInfo.setQueueCreateInfos(deviceQueueCreateInfo);
+	deviceCreateInfo.setEnabledExtensionCount(enabledExtensions.size());
+	deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
+	deviceCreateInfo.setPEnabledFeatures(&physicalDeviceFeatures);
+
+	device = physicalDevice.createDevice(deviceCreateInfo);
+}
+
+void Renderer::selectGraphicsQueue()
+{
+	auto queueFamilies = physicalDevice.getQueueFamilyProperties();
+
+	for (size_t i = 0; i < queueFamilies.size(); i++)
+	{
+		if (queueFamilies[i].queueFlags == vk::QueueFlagBits::eGraphics)
+		{
+			graphicsQueueIndex = i;
+			break;
+		}
+	}
+}
+
+void Renderer::writeRenderInfo()
+{
+	memcpy(renderInfoBufferAllocInfo.pMappedData, &renderInfo, sizeof(renderInfo));
 }
 
 void Renderer::detectSampleCounts()
@@ -145,7 +316,7 @@ void Renderer::resetCommandBuffers()
 	commandPool.reset();
 }
 
-void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
+void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view)
 {
 	res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
 	device.resetFences(*inFlightFences[currentFrame]);
@@ -191,13 +362,16 @@ void Renderer::render(const std::vector<Model> &models, glm::mat4 view)
 	commandBuffers[currentFrame].setScissor(0, renderArea);
 	commandBuffers[currentFrame].setViewport(0, viewport);
 
+	renderInfo.cameraPos = cameraPos;
+	writeRenderInfo();
+
 	for (const auto &model : models)
 	{
 		ubo.model = model.getModel();
 		ubo.view = view;
 		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout,
 						   VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
-		model.draw(*commandBuffers[currentFrame], *pipelineLayout);
+		model.draw(*commandBuffers[currentFrame], *descriptorSet[0], *pipelineLayout);
 	}
 
 	ImGui::Render();

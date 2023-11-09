@@ -5,7 +5,8 @@
 namespace pbr
 {
 void Frame::begin(vk::raii::CommandBuffer &commandBuffer, vk::raii::Pipeline &pipeline,
-				  vk::raii::PipelineLayout &pipelineLayout, vk::Buffer &vertexBuffer, vk::Buffer &indexBuffer)
+				  vk::raii::PipelineLayout &pipelineLayout, const vk::DescriptorSet &descriptorSet,
+				  vk::Buffer &vertexBuffer, vk::Buffer &indexBuffer)
 {
 	commandBuffer.reset();
 	commandBuffer.begin({});

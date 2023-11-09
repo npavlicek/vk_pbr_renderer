@@ -27,11 +27,12 @@ Model::Model(const VmaAllocator &vmaAllocator, const vk::Device &device, const v
 	uploadMeshes(vmaAllocator, queue, commandBuffer);
 }
 
-void Model::draw(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const
+void Model::draw(const vk::CommandBuffer &commandBuffer, const vk::DescriptorSet &additionalSet,
+				 const vk::PipelineLayout &pipelineLayout) const
 {
 	for (const auto &mesh : meshes)
 	{
-		materials.at(mesh.getMaterialId()).bind(commandBuffer, pipelineLayout);
+		materials.at(mesh.getMaterialId()).bind(commandBuffer, additionalSet, pipelineLayout);
 		mesh.draw(commandBuffer);
 	}
 }

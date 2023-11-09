@@ -207,7 +207,7 @@ int main()
 
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-		renderer.render(models, view);
+		renderer.render(models, cameraPos, view);
 	}
 
 	renderer.destroyModel(models.at(0));

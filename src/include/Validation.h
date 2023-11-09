@@ -1,27 +1,25 @@
 #pragma once
 
-#include "vulkan/vulkan_raii.hpp"
-
-#include "string"
-#include "iostream"
+#include <algorithm>
+#include <vulkan/vulkan.hpp>
 
 class Validation
 {
-public:
-	static void areLayersAvailable(vk::raii::Context &context, std::vector<const char *> &requestedLayers)
+  public:
+	static void areLayersAvailable(std::vector<const char *> &requestedLayers)
 	{
-		auto availableLayers = context.enumerateInstanceLayerProperties();
+		auto availableLayers = vk::enumerateInstanceLayerProperties();
 
 		bool available = true;
 		for (const auto &layer : requestedLayers)
 		{
-			available = std::any_of(availableLayers.begin(), availableLayers.end(),
-									[layer](vk::LayerProperties &props) -> bool
-									{
-										if (strcmp(layer, props.layerName) == 0)
-											return true;
-										return false;
-									});
+			available =
+				std::any_of(availableLayers.begin(), availableLayers.end(), [&layer](const vk::LayerProperties &cur) {
+					if (strcmp(layer, cur.layerName) == 0)
+						return true;
+					return false;
+				});
+
 			if (!available)
 				break;
 		}

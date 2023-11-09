@@ -1,9 +1,14 @@
 #include "Util.h"
 
+#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iostream>
 
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_raii.hpp>
+#include <vulkan/vulkan_structs.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
 #include "Mesh.h"
@@ -303,9 +308,10 @@ std::vector<vk::raii::ShaderModule> createShaderModules(vk::raii::Device &device
 	return res;
 }
 
-std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache, vk::raii::DescriptorSetLayout>
-createPipeline(const vk::raii::Device &device, const vk::raii::RenderPass &renderPass,
-			   const std::vector<vk::raii::ShaderModule> &shaderModules, vk::SampleCountFlagBits msaaSamples)
+std::tuple<vk::raii::Pipeline, vk::raii::PipelineLayout, vk::raii::PipelineCache> createPipeline(
+	const vk::raii::Device &device, const vk::raii::RenderPass &renderPass,
+	const std::vector<vk::raii::ShaderModule> &shaderModules,
+	const std::vector<vk::raii::DescriptorSetLayout> &setLayouts, vk::SampleCountFlagBits msaaSamples)
 {
 	// Shader Stages
 	vk::PipelineShaderStageCreateInfo vertexShaderStageCreateInfo;
@@ -389,40 +395,6 @@ createPipeline(const vk::raii::Device &device, const vk::raii::RenderPass &rende
 	pipelineColorBlendStateCreateInfo.setAttachments(colorBlendAttachmentState);
 	pipelineColorBlendStateCreateInfo.setLogicOpEnable(vk::False);
 
-	// Descriptor Sets Layout
-	vk::DescriptorSetLayoutBinding diffuseSamplerBinding{};
-	diffuseSamplerBinding.setBinding(0);
-	diffuseSamplerBinding.setDescriptorCount(1);
-	diffuseSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	diffuseSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-	vk::DescriptorSetLayoutBinding metallicSamplerBinding{};
-	metallicSamplerBinding.setBinding(1);
-	metallicSamplerBinding.setDescriptorCount(1);
-	metallicSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	metallicSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-	vk::DescriptorSetLayoutBinding roughnessSamplerBinding{};
-	roughnessSamplerBinding.setBinding(2);
-	roughnessSamplerBinding.setDescriptorCount(1);
-	roughnessSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	roughnessSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-	vk::DescriptorSetLayoutBinding normalSamplerBinding{};
-	normalSamplerBinding.setBinding(3);
-	normalSamplerBinding.setDescriptorCount(1);
-	normalSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	normalSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-	std::vector<vk::DescriptorSetLayoutBinding> descriptorSetBindings{diffuseSamplerBinding, metallicSamplerBinding,
-																	  roughnessSamplerBinding, normalSamplerBinding};
-
-	vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
-	descriptorSetLayoutCreateInfo.setBindingCount(descriptorSetBindings.size());
-	descriptorSetLayoutCreateInfo.setBindings(descriptorSetBindings);
-
-	vk::raii::DescriptorSetLayout descriptorSetLayout{device, descriptorSetLayoutCreateInfo};
-
 	// Push Constants
 	vk::PushConstantRange pushConstants;
 	pushConstants.setOffset(0);
@@ -430,9 +402,15 @@ createPipeline(const vk::raii::Device &device, const vk::raii::RenderPass &rende
 	pushConstants.setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
 	// Pipeline Layout
+	std::vector<vk::DescriptorSetLayout> descriptorLayouts;
+
+	std::for_each(setLayouts.begin(), setLayouts.end(), [&descriptorLayouts](const vk::raii::DescriptorSetLayout &ref) {
+		descriptorLayouts.push_back(*ref);
+	});
+
 	vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-	pipelineLayoutCreateInfo.setSetLayoutCount(1);
-	pipelineLayoutCreateInfo.setSetLayouts(*descriptorSetLayout);
+	pipelineLayoutCreateInfo.setSetLayoutCount(descriptorLayouts.size());
+	pipelineLayoutCreateInfo.setSetLayouts(descriptorLayouts);
 	pipelineLayoutCreateInfo.setPushConstantRanges(pushConstants);
 	pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
 
@@ -457,7 +435,7 @@ createPipeline(const vk::raii::Device &device, const vk::raii::RenderPass &rende
 
 	vk::raii::Pipeline pipeline{device, pipelineCache, graphicsPipelineCreateInfo};
 
-	return {std::move(pipeline), std::move(pipelineLayout), std::move(pipelineCache), std::move(descriptorSetLayout)};
+	return {std::move(pipeline), std::move(pipelineLayout), std::move(pipelineCache)};
 }
 
 std::vector<vk::raii::Framebuffer> createFrameBuffers(const vk::raii::Device &device,

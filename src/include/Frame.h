@@ -11,7 +11,8 @@ class Frame
 {
   public:
 	static void begin(vk::raii::CommandBuffer &commandBuffer, vk::raii::Pipeline &pipeline,
-					  vk::raii::PipelineLayout &pipelineLayout, vk::Buffer &vertexBuffer, vk::Buffer &indexBuffer);
+					  vk::raii::PipelineLayout &pipelineLayout, const vk::DescriptorSet &descriptorSet,
+					  vk::Buffer &vertexBuffer, vk::Buffer &indexBuffer);
 	static void end(vk::raii::CommandBuffer &commandBuffer);
 	static void beginRenderPass(vk::raii::CommandBuffer &commandBuffer, vk::raii::RenderPass &renderPass,
 								vk::raii::Framebuffer &frameBuffer, std::vector<vk::ClearValue> &clearValues,

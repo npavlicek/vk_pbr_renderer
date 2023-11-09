@@ -5,8 +5,8 @@
 #include "CommandBuffer.h"
 #include "VkErrorHandling.h"
 
-
 #include <format>
+#include <vulkan/vulkan_handles.hpp>
 
 Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue,
 				   const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
@@ -212,9 +212,10 @@ vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotrop
 	return device.createSampler(samplerCreateInfo);
 }
 
-void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const
+void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::DescriptorSet descriptorSet,
+					const vk::PipelineLayout &pipelineLayout) const
 {
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 }
 
 void Material::createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,

@@ -2,29 +2,32 @@
 
 #include <tuple>
 
-#include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
+#include <vulkan/vulkan.hpp>
 
 #include "tiny_obj_loader.h"
 
 class Material
 {
-public:
+  public:
 	constexpr Material() = delete;
-	Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat);
+	Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue,
+			 const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat);
 	constexpr Material(const Material &) = delete;
 	constexpr Material &operator=(const Material &rhs) = delete;
 	constexpr Material(Material &&) = default;
 
-	void bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const;
+	void bind(const vk::CommandBuffer &commandBuffer, const vk::DescriptorSet descriptorSet,
+			  const vk::PipelineLayout &pipelineLayout) const;
 	void destroy(const VmaAllocator &allocator, const vk::Device &device, const vk::DescriptorPool &descriptorPool);
 
 	static vk::Sampler createSampler(const vk::Device &device, float maxAnisotropy);
-	void createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool, const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler);
+	void createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,
+							  const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler);
 
-private:
-	std::tuple<VkImage, VmaAllocation>
-	loadImage(const VmaAllocator &allocator, const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const char *path);
+  private:
+	std::tuple<VkImage, VmaAllocation> loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
+												 const vk::CommandBuffer &commandBuffer, const char *path);
 
 	VkImage diffuse;
 	VkImageView diffuseView;

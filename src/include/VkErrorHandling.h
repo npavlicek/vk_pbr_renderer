@@ -2,13 +2,35 @@
 
 #include <iostream>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_to_string.hpp>
+#include <vulkan/vk_enum_string_helper.h>
 
 #include "ansi_color_defs.h"
 
+inline void checkResult(vk::Result res)
+{
+	if (res != vk::Result::eSuccess)
+	{
+		std::cerr << "Encountered a Vulkan error:\n";
+		std::cerr << vk::to_string(res) << std::endl;
+		throw std::runtime_error("Vulkan runtime exception");
+	}
+}
+
+inline void checkResult(VkResult res)
+{
+	if (res != VkResult::VK_SUCCESS)
+	{
+		std::cerr << "Encountered a Vulkan error:\n";
+		std::cerr << string_VkResult(res) << std::endl;
+		throw std::runtime_error("Vulkan runtime exception");
+	}
+}
+
 class VkResCheck
 {
-public:
+  public:
 	VkResCheck() = default;
 
 	VkResCheck(const vk::Result &rhs)
@@ -23,8 +45,7 @@ public:
 		checkResult(lastResult);
 	}
 
-	static void checkResult(
-		vk::Result result)
+	static void checkResult(vk::Result result)
 	{
 		if (result != vk::Result::eSuccess)
 		{
@@ -35,10 +56,8 @@ public:
 	}
 
 	static VkBool32 VKAPI_PTR PFN_vkDebugUtilsMessengerCallbackEXT(
-		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageTypes,
-		const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-		void *pUserData)
+		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+		const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
 	{
 		if (messageSeverity & VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
 		{
@@ -68,6 +87,6 @@ public:
 		return VK_FALSE;
 	}
 
-private:
+  private:
 	vk::Result lastResult{};
 };

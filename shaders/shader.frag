@@ -10,6 +10,9 @@ layout(binding = 1) uniform sampler2D metallicSampler;
 layout(binding = 2) uniform sampler2D roughnessSampler;
 layout(binding = 3) uniform sampler2D normalSampler;
 
+layout(binding = 4) uniform vec3 cameraPos;
+layout(binding = 5) uniform vec3 lightPos[4];
+
 
 void main() {
     //outColor = vec4(fragTexCoords, 0.0, 1.0);
