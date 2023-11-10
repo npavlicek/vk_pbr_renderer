@@ -1,9 +1,10 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
+#include "VkExt.h"
+
 #include "Mesh.h"
 #include "Model.h"
 #include "Renderer.h"
-#include "Texture.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -16,6 +17,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+#include <iostream>
 
 glm::vec3 cameraPos = glm::vec3{0.f, 0.f, -5.f};
 glm::vec3 cameraFront = glm::vec3(0.f, 0.f, 1.f);
@@ -144,14 +147,14 @@ int main()
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	Renderer renderer(window);
+	N::Renderer renderer(window);
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
 	// Model model = renderer.createModel("models/cow.obj");
 	// Model model2 = renderer.createModel("models/teddybear.obj");
 
-	Model testModel = renderer.createModel("models/rusty_sphere.obj");
+	N::Model testModel = renderer.createModel("models/rusty_sphere.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -168,10 +171,8 @@ int main()
 	// model2Pos = glm::scale(model2Pos, glm::vec3(0.25f));
 	// model2.setModel(model2Pos);
 
-	std::vector<Model> models;
+	std::vector<N::Model> models;
 	models.push_back(std::move(testModel));
-
-	renderer.resetCommandBuffers();
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 

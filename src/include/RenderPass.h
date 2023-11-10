@@ -16,6 +16,7 @@ struct RenderPassCreateInfo
 class RenderPass
 {
   public:
+	constexpr RenderPass() = default;
 	constexpr RenderPass(RenderPass &rhs) = delete;
 	constexpr RenderPass &operator=(RenderPass &rhs) = delete;
 	constexpr RenderPass(RenderPass &&rhs) = default;

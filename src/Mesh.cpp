@@ -1,5 +1,8 @@
 #include "Mesh.h"
 
+#include "CommandBuffer.h"
+#include <vulkan/vulkan_core.h>
+
 Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int materialId)
 {
 	this->materialId = materialId;
@@ -65,6 +68,7 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	VkDeviceSize verticesSize = vertices.size() * sizeof(Vertex);
 	VkDeviceSize indicesSize = indices.size() * sizeof(uint16_t);
 
+	// We will allocate a buffer of the bigger size so we can use the same buffer for both indices and vertices
 	VkDeviceSize stagingBufferSize = std::max(verticesSize, indicesSize);
 
 	VkBufferCreateInfo stagingBufferCreateInfo{};
@@ -78,6 +82,7 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	vmaStagingBufferAllocCreateInfo.flags =
 		VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
+	// Create the staging buffer
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingBufferAllocation;
 	VmaAllocationInfo stagingBufferAllocInfo;
@@ -93,8 +98,8 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	VmaAllocationCreateInfo vmaAllocCreateInfo{};
 	vmaAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	vmaCreateBuffer(vmaAllocator, &vertexBufferCreateInfo, &vmaAllocCreateInfo, &vertexBuffer, &vertexBufferAllocation,
-					nullptr);
+	vmaCreateBuffer(vmaAllocator, &vertexBufferCreateInfo, &vmaAllocCreateInfo,
+					reinterpret_cast<VkBuffer *>(&vertexBuffer), &vertexBufferAllocation, nullptr);
 
 	VkBufferCreateInfo indexBufferCreateInfo{};
 	indexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -102,8 +107,8 @@ void Mesh::uploadMesh(const VmaAllocator &vmaAllocator, const vk::Queue &queue, 
 	indexBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	indexBufferCreateInfo.size = indicesSize;
 
-	vmaCreateBuffer(vmaAllocator, &indexBufferCreateInfo, &vmaAllocCreateInfo, &indexBuffer, &indexBufferAllocation,
-					nullptr);
+	vmaCreateBuffer(vmaAllocator, &indexBufferCreateInfo, &vmaAllocCreateInfo,
+					reinterpret_cast<VkBuffer *>(&indexBuffer), &indexBufferAllocation, nullptr);
 
 	memcpy(stagingBufferAllocInfo.pMappedData, vertices.data(), verticesSize);
 

@@ -3,11 +3,14 @@
 #include "stb_image.h"
 
 #include "CommandBuffer.h"
-#include "VkErrorHandling.h"
 
-#include <format>
+#include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_handles.hpp>
 
+#include <format>
+
+namespace N
+{
 Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue,
 				   const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
 {
@@ -35,23 +38,25 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	imageViewCreateInfo.subresourceRange = imageSubresourceRange;
 
 	imageViewCreateInfo.image = diffuse;
-	VkResCheck res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &diffuseView);
+	auto res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &diffuseView);
+	vk::resultCheck(vk::Result(res), "Could not create image view!");
 
 	imageViewCreateInfo.image = metallic;
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &metallicView);
+	vk::resultCheck(vk::Result(res), "Could not create image view!");
 
 	imageViewCreateInfo.image = roughness;
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &roughnessView);
+	vk::resultCheck(vk::Result(res), "Could not create image view!");
 
 	imageViewCreateInfo.image = normal;
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &normalView);
+	vk::resultCheck(vk::Result(res), "Could not create image view!");
 }
 
 void Material::destroy(const VmaAllocator &allocator, const vk::Device &device,
 					   const vk::DescriptorPool &descriptorPool)
 {
-	device.freeDescriptorSets(descriptorPool, descriptorSets);
-
 	vkDestroyImageView(device, diffuseView, nullptr);
 	vkDestroyImageView(device, metallicView, nullptr);
 	vkDestroyImageView(device, roughnessView, nullptr);
@@ -90,8 +95,9 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	VmaAllocation stagingAllocation;
 	VmaAllocationInfo allocInfo;
 
-	VkResCheck res = vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer,
-									 &stagingAllocation, &allocInfo);
+	auto res = vmaCreateBuffer(allocator, &bufferCreateInfo, &allocationCreateInfo, &stagingBuffer, &stagingAllocation,
+							   &allocInfo);
+	vk::resultCheck(vk::Result(res), "Could not create buffer!");
 
 	memcpy(allocInfo.pMappedData, data, bufferCreateInfo.size);
 
@@ -121,6 +127,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	VmaAllocation imageAllocation;
 
 	res = vmaCreateImage(allocator, &imageCreateInfo, &imageAllocationCreateInfo, &image, &imageAllocation, nullptr);
+	vk::resultCheck(vk::Result(res), "Could not create buffer!");
 
 	// Transition to transfer dst
 
@@ -212,10 +219,9 @@ vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotrop
 	return device.createSampler(samplerCreateInfo);
 }
 
-void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::DescriptorSet descriptorSet,
-					const vk::PipelineLayout &pipelineLayout) const
+void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const
 {
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, descriptorSets, nullptr);
 }
 
 void Material::createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,
@@ -274,3 +280,4 @@ void Material::createDescriptorSets(const vk::Device &device, const vk::Descript
 
 	device.updateDescriptorSets(writeDescriptorSets, nullptr);
 }
+} // namespace N

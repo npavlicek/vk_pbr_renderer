@@ -27,6 +27,7 @@ struct MVPPushConstant
 class PBRPipeline
 {
   public:
+	constexpr PBRPipeline() = default;
 	constexpr PBRPipeline(PBRPipeline &rhs) = delete;
 	constexpr PBRPipeline &operator=(PBRPipeline &rhs) = delete;
 	constexpr PBRPipeline(PBRPipeline &&rhs) = default;

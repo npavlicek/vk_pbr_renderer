@@ -1,14 +1,10 @@
 #pragma once
 
-
 #include <vector>
-
 #include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
-
-
 #include "tiny_obj_loader.h"
-#include "CommandBuffer.h"
+
 #include "Vertex.h"
 
 class Mesh
@@ -28,7 +24,7 @@ class Mesh
 	{
 		return indices;
 	}
-	const int getMaterialId() const
+	int getMaterialId() const
 	{
 		return materialId;
 	}
@@ -42,10 +38,10 @@ class Mesh
 	std::vector<uint16_t> indices;
 	int materialId;
 
-	VkBuffer vertexBuffer;
+	vk::Buffer vertexBuffer;
 	VmaAllocation vertexBufferAllocation;
 
-	VkBuffer indexBuffer;
+	vk::Buffer indexBuffer;
 	VmaAllocation indexBufferAllocation;
 
 	void bind(const vk::CommandBuffer &commandBuffer) const;

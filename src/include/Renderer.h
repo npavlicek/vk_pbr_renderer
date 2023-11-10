@@ -1,33 +1,23 @@
 #pragma once
 
-#include <chrono>
-
-#include "CommandBuffer.h"
-#include "Frame.h"
-#include "Model.h"
-#include "PBRPipeline.h"
-#include "RenderPass.h"
-#include "SwapChain.h"
-#include "Texture.h"
-#include "Util.h"
-#include "VkErrorHandling.h"
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_structs.hpp>
+#include <vma/vk_mem_alloc.h>
+#include <GLFW/glfw3.h>
 
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
 #include <imgui/imgui.h>
 
-#include <glm/common.hpp>
-#include <glm/ext.hpp>
-#include <glm/glm.hpp>
+#include "Model.h"
+#include "PBRPipeline.h"
+#include "RenderPass.h"
+#include "SwapChain.h"
 
-// #include <glm/gtx/string_cast.hpp>
-
-#include <vma/vk_mem_alloc.h>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_raii.hpp>
-#include <vulkan/vulkan_structs.hpp>
-
+namespace N
+{
 // FIXME: temporary
 struct ModelSettings
 {
@@ -39,19 +29,6 @@ struct ModelSettings
 	{
 		float x, y, z;
 	} rotation;
-};
-
-struct UniformData
-{
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 projection;
-};
-
-struct RenderInfo
-{
-	glm::vec3 cameraPos;
-	glm::vec3 lightPos[4];
 };
 
 struct ImageObject
@@ -71,12 +48,10 @@ class Renderer
 	Renderer(const Renderer &&rhs) = delete;
 	~Renderer();
 
-	Texture createTexture(const char *path);
 	Model createModel(const char *path);
 	void render(const std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view);
 	void destroy();
 	void destroyModel(Model &model);
-	void resetCommandBuffers();
 
   private:
 	vk::Instance instance;
@@ -89,6 +64,7 @@ class Renderer
 	vk::Queue graphicsQueue;
 	N::PBRPipeline pipeline;
 	vk::DescriptorPool descriptorPool;
+	vk::CommandPool commandPool;
 
 	vk::Sampler sampler;
 
@@ -96,50 +72,34 @@ class Renderer
 	vk::SampleCountFlagBits samples;
 	vk::Format depthFormat;
 
-	std::vector<vk::CommandPool> commandPools;
 	std::vector<ImageObject> depthImages;
 	std::vector<ImageObject> renderTargets;
 	std::vector<vk::Framebuffer> frameBuffers;
+	std::vector<vk::CommandBuffer> commandBuffers;
+	std::vector<vk::Semaphore> imageAvailableSemaphores;
+	std::vector<vk::Semaphore> renderFinishedSemaphores;
+	std::vector<vk::Fence> inFlightFences;
 
 	int framesInFlight = 2;
 	int currentFrame = 0;
 
 	VmaAllocator vmaAllocator;
 
-	VmaAllocation vertexBufferAllocation;
-	vk::Buffer vertexBuffer;
-
-	VmaAllocation indexBufferAllocation;
-	vk::Buffer indexBuffer;
-
-	VkBuffer renderInfoBuffer;
-	VmaAllocation renderInfoBufferAlloc;
-	VmaAllocationInfo renderInfoBufferAllocInfo;
-
 	GLFWwindow *window;
 	ImGuiContext *imGuiContext;
-
-	VkResCheck res;
-
-	UniformData ubo;
-	RenderInfo renderInfo;
-
-	// TODO: temp
-	int numIndices;
 
 	vk::ClearColorValue clearColorValue;
 	vk::ClearDepthStencilValue clearDepthValue;
 	std::vector<vk::ClearValue> clearValues;
-	vk::Rect2D renderArea;
 
 	ModelSettings modelSettings{{0.f, 5.f, 2.f}, {}};
-	// TODO: end temp
+	N::MVPPushConstant mvpPushConstant;
 
 	void createInstance();
 	void selectPhysicalDevice();
 	void selectGraphicsQueue();
 	void createDevice();
-	void createCommandPools();
+	void createCommandPool();
 	void createSurface();
 	void detectSampleCounts();
 	void selectDepthFormat();
@@ -147,11 +107,8 @@ class Renderer
 	void createRenderTargets();
 	void createFrameBuffers();
 	void createDescriptorPool();
-
-	void createDescriptorSets();
-	void updateDescriptorSets();
-	void createUniformBuffers();
-	void writeRenderInfo();
-	void createSyncObjects();
 	void initializeImGui();
+	void createCommandBuffers();
+	void createSyncObjects();
 };
+} // namespace N

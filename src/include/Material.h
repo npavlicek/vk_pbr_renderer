@@ -7,6 +7,8 @@
 
 #include "tiny_obj_loader.h"
 
+namespace N
+{
 class Material
 {
   public:
@@ -16,9 +18,9 @@ class Material
 	constexpr Material(const Material &) = delete;
 	constexpr Material &operator=(const Material &rhs) = delete;
 	constexpr Material(Material &&) = default;
+	Material &operator=(Material &&) = default;
 
-	void bind(const vk::CommandBuffer &commandBuffer, const vk::DescriptorSet descriptorSet,
-			  const vk::PipelineLayout &pipelineLayout) const;
+	void bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const;
 	void destroy(const VmaAllocator &allocator, const vk::Device &device, const vk::DescriptorPool &descriptorPool);
 
 	static vk::Sampler createSampler(const vk::Device &device, float maxAnisotropy);
@@ -47,3 +49,4 @@ class Material
 
 	std::vector<vk::DescriptorSet> descriptorSets;
 };
+} // namespace N

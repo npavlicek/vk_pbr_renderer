@@ -1,17 +1,18 @@
 #include "Renderer.h"
-#include "PBRPipeline.h"
-#include "RenderPass.h"
-#include "SwapChain.h"
-#include "Util.h"
-#include <GLFW/glfw3.h>
-#include <stdexcept>
+#include "Model.h"
+#include "Validation.h"
+#include "CommandBuffer.h"
+#include "VkErrorHandling.h"
+#include "VkExt.h"
+
+#include <chrono>
+#include <stdint.h>
+#include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
-#include "Validation.h"
-
+namespace N
+{
 Renderer::Renderer(GLFWwindow *window)
 {
 	this->window = window;
@@ -23,11 +24,8 @@ Renderer::Renderer(GLFWwindow *window)
 
 	graphicsQueue = device.getQueue(graphicsQueueIndex, 0);
 
-	createCommandPools();
-	// TODO: Command Buffers
-	// Have a frame object which creates its own buffers?
-	// Utilize first command pool to initialize shit
-	// multithreaded asset loading?
+	createCommandPool();
+	createCommandBuffers();
 
 	createDescriptorPool();
 
@@ -65,32 +63,24 @@ Renderer::Renderer(GLFWwindow *window)
 
 	createDepthObjects();
 	createRenderTargets();
-
 	createFrameBuffers();
-
-	descriptorPool = util::createDescriptorPool(device);
-
-	createDescriptorSets();
-	createUniformBuffers();
-	updateDescriptorSets();
-
 	createSyncObjects();
 	initializeImGui();
 
-	sampler = Material::createSampler(*device, physicalDevice.getProperties().limits.maxSamplerAnisotropy);
+	sampler = Material::createSampler(device, physicalDevice.getProperties().limits.maxSamplerAnisotropy);
+
+	vk::Extent2D extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
 
 	clearColorValue = vk::ClearColorValue{0.f, 0.f, 0.f, 1.f};
 	clearDepthValue = vk::ClearDepthStencilValue{1.f, 0};
 	clearValues.push_back(clearColorValue);
 	clearValues.push_back(clearDepthValue);
-	renderArea = vk::Rect2D{{0, 0}, swapChainSurfaceCapabilities.currentExtent};
 
-	ubo.model = glm::mat4(1.f);
-	ubo.view = glm::mat4(1.f);
-	ubo.projection = glm::perspective(45.f,
-									  swapChainSurfaceCapabilities.currentExtent.width * 1.f /
-										  swapChainSurfaceCapabilities.currentExtent.height,
-									  0.1f, 100.f);
+	mvpPushConstant.model = glm::mat4(1.f);
+	mvpPushConstant.view = glm::mat4(1.f);
+	mvpPushConstant.projection = glm::perspective(45.f, extent.width * 1.f / extent.height, 0.1f, 100.f);
+
+	commandBuffers.at(0).reset({});
 }
 
 void Renderer::createInstance()
@@ -148,7 +138,10 @@ Renderer::~Renderer()
 {
 	device.waitIdle();
 
+	device.resetDescriptorPool(descriptorPool);
 	device.destroyDescriptorPool(descriptorPool);
+
+	device.destroySampler(sampler);
 
 	for (int i = 0; i < framesInFlight; i++)
 	{
@@ -159,14 +152,17 @@ Renderer::~Renderer()
 
 		device.destroyImageView(renderTargets.at(i).imageView);
 		vmaDestroyImage(vmaAllocator, renderTargets.at(i).image, renderTargets.at(i).imageAllocation);
+
+		device.destroySemaphore(imageAvailableSemaphores[i]);
+		device.destroySemaphore(renderFinishedSemaphores[i]);
+		device.destroyFence(inFlightFences[i]);
 	}
+
+	device.freeCommandBuffers(commandPool, commandBuffers);
 
 	vmaDestroyAllocator(vmaAllocator);
 
-	for (const auto &cur : commandPools)
-	{
-		device.destroyCommandPool(cur);
-	}
+	device.destroyCommandPool(commandPool);
 
 	swapChain.destroy(device);
 	pipeline.destroy(device);
@@ -217,16 +213,23 @@ void Renderer::createDescriptorPool()
 	descriptorPool = device.createDescriptorPool(createInfo);
 }
 
-void Renderer::createCommandPools()
+void Renderer::createCommandBuffers()
+{
+	vk::CommandBufferAllocateInfo createInfo;
+	createInfo.setLevel(vk::CommandBufferLevel::ePrimary);
+	createInfo.setCommandPool(commandPool);
+	createInfo.setCommandBufferCount(framesInFlight);
+
+	commandBuffers = device.allocateCommandBuffers(createInfo);
+}
+
+void Renderer::createCommandPool()
 {
 	vk::CommandPoolCreateInfo commandPoolCreateInfo;
 	commandPoolCreateInfo.setQueueFamilyIndex(graphicsQueueIndex);
 	commandPoolCreateInfo.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
-	for (int i = 0; i < framesInFlight; i++)
-	{
-		commandPools.push_back(device.createCommandPool(commandPoolCreateInfo));
-	}
+	commandPool = device.createCommandPool(commandPoolCreateInfo);
 }
 
 void Renderer::createFrameBuffers()
@@ -249,40 +252,6 @@ void Renderer::createFrameBuffers()
 
 		frameBuffers.push_back(device.createFramebuffer(frameBufferCreateInfo));
 	}
-}
-
-void Renderer::createUniformBuffers()
-{
-	vk::BufferCreateInfo bufferCI{};
-	bufferCI.setUsage(vk::BufferUsageFlagBits::eUniformBuffer);
-	bufferCI.setSharingMode(vk::SharingMode::eExclusive);
-	bufferCI.setSize(sizeof(renderInfo));
-
-	VmaAllocationCreateInfo vmaAllocCI{};
-	vmaAllocCI.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vmaAllocCI.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT |
-					   VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	vmaCreateBuffer(vmaAllocator, reinterpret_cast<VkBufferCreateInfo *>(&bufferCI), &vmaAllocCI, &renderInfoBuffer,
-					&renderInfoBufferAlloc, &renderInfoBufferAllocInfo);
-}
-
-void Renderer::updateDescriptorSets()
-{
-	vk::DescriptorBufferInfo bufferI;
-	bufferI.setBuffer(renderInfoBuffer);
-	bufferI.setOffset(0);
-	bufferI.setRange(sizeof(renderInfo));
-
-	vk::WriteDescriptorSet writeSet;
-	writeSet.setDescriptorCount(1);
-	writeSet.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-	writeSet.setDstArrayElement(0);
-	writeSet.setDstSet(*descriptorSet[0]);
-	writeSet.setDstBinding(4);
-	writeSet.setBufferInfo(bufferI);
-
-	device.updateDescriptorSets(writeSet, nullptr);
 }
 
 // TODO: make this function more specific for what gpu features i need
@@ -333,17 +302,12 @@ void Renderer::selectGraphicsQueue()
 
 	for (size_t i = 0; i < queueFamilies.size(); i++)
 	{
-		if (queueFamilies[i].queueFlags == vk::QueueFlagBits::eGraphics)
+		if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics)
 		{
-			graphicsQueueIndex = i;
+			graphicsQueueIndex = static_cast<int>(i);
 			break;
 		}
 	}
-}
-
-void Renderer::writeRenderInfo()
-{
-	memcpy(renderInfoBufferAllocInfo.pMappedData, &renderInfo, sizeof(renderInfo));
 }
 
 void Renderer::detectSampleCounts()
@@ -376,18 +340,16 @@ void Renderer::destroyModel(Model &model)
 {
 	device.waitIdle();
 
-	model.destroy(vmaAllocator, *device, *descriptorPool);
-}
-
-void Renderer::resetCommandBuffers()
-{
-	commandPool.reset();
+	model.destroy(vmaAllocator, device, descriptorPool);
 }
 
 void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view)
 {
-	res = device.waitForFences(*inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
-	device.resetFences(*inFlightFences[currentFrame]);
+	auto res = device.waitForFences(inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
+	vk::resultCheck(res, "error encountered while waiting for fence!");
+	device.resetFences(inFlightFences[currentFrame]);
+
+	const vk::CommandBuffer &cb = commandBuffers[currentFrame];
 
 	// IMGUI NEW FRAME
 
@@ -408,17 +370,31 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 
 	// IMGUI END NEW FRAME
 
-	ubo.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z),
-						   glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
+	mvpPushConstant.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z),
+									   glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
 
-	uint32_t imageIndex;
-	std::tie(res, imageIndex) =
-		swapChain.acquireNextImage(UINT64_MAX, *imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE);
+	auto swapChainRes =
+		device.acquireNextImageKHR(swapChain.getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame]);
+	vk::resultCheck(swapChainRes.result, "Could not acquire the next swapchain image!");
+	uint32_t imageIndex = swapChainRes.value;
 
-	pbr::Frame::begin(commandBuffers.at(currentFrame), pipeline, pipelineLayout, vertexBuffer, indexBuffer);
+	cb.reset();
 
-	pbr::Frame::beginRenderPass(commandBuffers.at(currentFrame), renderPass, frameBuffers[imageIndex], clearValues,
-								renderArea);
+	vk::CommandBufferBeginInfo cbBeginInfo{};
+	cb.begin(cbBeginInfo);
+	vk::resultCheck(res, "Could not begin the current command buffer!");
+
+	cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.getPipeline());
+
+	const vk::Rect2D renderArea{{0, 0}, physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent};
+
+	vk::RenderPassBeginInfo rpInfo;
+	rpInfo.setRenderPass(renderPass.get());
+	rpInfo.setFramebuffer(frameBuffers[imageIndex]);
+	rpInfo.setRenderArea(renderArea);
+	rpInfo.setClearValues(clearValues);
+	rpInfo.setClearValueCount(clearValues.size());
+	cb.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
 	vk::Viewport viewport{static_cast<float>(renderArea.offset.x),
 						  static_cast<float>(renderArea.extent.height),
@@ -427,48 +403,46 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 						  0,
 						  1};
 
-	commandBuffers[currentFrame].setScissor(0, renderArea);
-	commandBuffers[currentFrame].setViewport(0, viewport);
-
-	renderInfo.cameraPos = cameraPos;
-	writeRenderInfo();
+	cb.setScissor(0, renderArea);
+	cb.setViewport(0, viewport);
 
 	for (const auto &model : models)
 	{
-		ubo.model = model.getModel();
-		ubo.view = view;
-		vkCmdPushConstants(*commandBuffers[currentFrame], *pipelineLayout,
-						   VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UniformData), &ubo);
-		model.draw(*commandBuffers[currentFrame], *descriptorSet[0], *pipelineLayout);
+		mvpPushConstant.model = model.getModel();
+		mvpPushConstant.view = view;
+		vkCmdPushConstants(commandBuffers[currentFrame], pipeline.getPipelineLayout(),
+						   VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(N::MVPPushConstant),
+						   &mvpPushConstant);
+		model.draw(cb, pipeline.getPipelineLayout());
 	}
 
 	ImGui::Render();
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffers[currentFrame]);
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
 
-	pbr::Frame::endRenderPass(commandBuffers.at(currentFrame));
-	pbr::Frame::end(commandBuffers.at(currentFrame));
+	cb.endRenderPass();
+	cb.end();
 
 	std::vector<vk::PipelineStageFlags> pipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
 	vk::SubmitInfo submitInfo;
 	submitInfo.setWaitSemaphoreCount(1);
-	submitInfo.setWaitSemaphores(*imageAvailableSemaphores[currentFrame]);
+	submitInfo.setWaitSemaphores(imageAvailableSemaphores[currentFrame]);
 	submitInfo.setWaitDstStageMask(pipelineStageFlags);
 	submitInfo.setCommandBufferCount(1);
-	submitInfo.setCommandBuffers(*commandBuffers.at(currentFrame));
+	submitInfo.setCommandBuffers(cb);
 	submitInfo.setSignalSemaphoreCount(1);
-	submitInfo.setSignalSemaphores(*renderFinishedSemaphores[currentFrame]);
+	submitInfo.setSignalSemaphores(renderFinishedSemaphores[currentFrame]);
 
-	queue.submit(submitInfo, *inFlightFences[currentFrame]);
+	graphicsQueue.submit(submitInfo, inFlightFences[currentFrame]);
 
 	vk::PresentInfoKHR presentInfo;
 	presentInfo.setSwapchainCount(1);
-	presentInfo.setSwapchains(*swapChain);
+	presentInfo.setSwapchains(swapChain.getSwapChain());
 	presentInfo.setImageIndices(imageIndex);
 	presentInfo.setWaitSemaphoreCount(1);
-	presentInfo.setWaitSemaphores(*renderFinishedSemaphores[currentFrame]);
+	presentInfo.setWaitSemaphores(renderFinishedSemaphores[currentFrame]);
 
-	res = queue.presentKHR(presentInfo);
+	vk::resultCheck(graphicsQueue.presentKHR(presentInfo), "Could not present the swapchain image!");
 
 	currentFrame = (currentFrame + 1) % framesInFlight;
 }
@@ -479,34 +453,30 @@ void Renderer::initializeImGui()
 
 	ImGui_ImplGlfw_InitForVulkan(window, true);
 
-	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{*instance,
-													  *physicalDevice,
-													  *device,
-													  static_cast<uint32_t>(queueFamilyGraphicsIndex),
-													  *queue,
-													  *pipelineCache,
-													  *descriptorPool,
+	ImGui_ImplVulkan_InitInfo imGuiImplVulkanInitInfo{instance,
+													  physicalDevice,
+													  device,
+													  static_cast<uint32_t>(graphicsQueueIndex),
+													  graphicsQueue,
+													  nullptr,
+													  descriptorPool,
 													  0,
-													  swapChainSurfaceCapabilities.minImageCount,
-													  swapChainSurfaceCapabilities.minImageCount,
-													  static_cast<VkSampleCountFlagBits>(msaaSamples),
+													  static_cast<uint32_t>(framesInFlight),
+													  static_cast<uint32_t>(framesInFlight),
+													  static_cast<VkSampleCountFlagBits>(samples),
 													  false,
-													  static_cast<VkFormat>(swapChainFormat.format),
+													  static_cast<VkFormat>(swapChain.getSurfaceFormat().format),
 													  nullptr,
 													  nullptr};
 
-	ImGui_ImplVulkan_Init(&imGuiImplVulkanInitInfo, *renderPass);
+	ImGui_ImplVulkan_Init(&imGuiImplVulkanInitInfo, renderPass.get());
 
-	CommandBuffer::beginSTC(*commandBuffers[0]);
-	ImGui_ImplVulkan_CreateFontsTexture(*commandBuffers[0]);
-	CommandBuffer::endSTC(*commandBuffers[0], *queue);
+	// FIXME: change the command buffers variable
+	CommandBuffer::beginSTC(commandBuffers[0]);
+	ImGui_ImplVulkan_CreateFontsTexture(commandBuffers[0]);
+	CommandBuffer::endSTC(commandBuffers[0], graphicsQueue);
 
 	ImGui_ImplVulkan_DestroyFontUploadObjects();
-}
-
-Texture Renderer::createTexture(const char *path)
-{
-	return Texture{device, physicalDevice, commandBuffers[0], queue, path};
 }
 
 void Renderer::createSyncObjects()
@@ -525,7 +495,7 @@ void Renderer::createSyncObjects()
 void Renderer::createDepthObjects()
 {
 	auto extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
-	vk::ImageCreateInfo imageCreateInfo;
+	vk::ImageCreateInfo imageCreateInfo{};
 	imageCreateInfo.setImageType(vk::ImageType::e2D);
 	imageCreateInfo.setArrayLayers(1);
 	imageCreateInfo.setExtent(vk::Extent3D{extent.width, extent.height, 1});
@@ -537,7 +507,7 @@ void Renderer::createDepthObjects()
 	imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
 	imageCreateInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
 
-	VmaAllocationCreateInfo allocationCreateInfo;
+	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	allocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
@@ -549,7 +519,6 @@ void Renderer::createDepthObjects()
 	subresource.setAspectMask(vk::ImageAspectFlagBits::eDepth);
 
 	vk::ImageViewCreateInfo imageViewCreateInfo;
-	imageViewCreateInfo.setImage(cur.image);
 	imageViewCreateInfo.setViewType(vk::ImageViewType::e2D);
 	imageViewCreateInfo.setFormat(depthFormat);
 	imageViewCreateInfo.setComponents(vk::ComponentMapping{});
@@ -560,8 +529,9 @@ void Renderer::createDepthObjects()
 		ImageObject cur;
 
 		vmaCreateImage(vmaAllocator, reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo), &allocationCreateInfo,
-					   &cur.image, &cur.imageAllocation, cur.imageAllocationInfo);
+					   reinterpret_cast<VkImage *>(&cur.image), &cur.imageAllocation, &cur.imageAllocationInfo);
 
+		imageViewCreateInfo.setImage(cur.image);
 		cur.imageView = device.createImageView(imageViewCreateInfo);
 
 		depthImages.push_back(cur);
@@ -572,7 +542,7 @@ void Renderer::createRenderTargets()
 {
 	auto extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
 
-	vk::ImageCreateInfo imageCreateInfo;
+	vk::ImageCreateInfo imageCreateInfo{};
 	imageCreateInfo.setImageType(vk::ImageType::e2D);
 	imageCreateInfo.setArrayLayers(1);
 	imageCreateInfo.setExtent(vk::Extent3D{extent.width, extent.height, 1});
@@ -584,7 +554,7 @@ void Renderer::createRenderTargets()
 	imageCreateInfo.setTiling(vk::ImageTiling::eOptimal);
 	imageCreateInfo.setUsage(vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment);
 
-	VmaAllocationCreateInfo allocCreateInfo;
+	VmaAllocationCreateInfo allocCreateInfo{};
 	allocCreateInfo.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	allocCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
@@ -596,7 +566,6 @@ void Renderer::createRenderTargets()
 	subresource.setLevelCount(1);
 
 	vk::ImageViewCreateInfo viewCreateInfo;
-	viewCreateInfo.setImage(cur.image);
 	viewCreateInfo.setViewType(vk::ImageViewType::e2D);
 	viewCreateInfo.setComponents(vk::ComponentSwizzle{});
 	viewCreateInfo.setFormat(swapChain.getSurfaceFormat().format);
@@ -607,8 +576,9 @@ void Renderer::createRenderTargets()
 		ImageObject cur;
 
 		vmaCreateImage(vmaAllocator, reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo), &allocCreateInfo,
-					   &cur.image, &cur.imageAllocation, &cur.imageAllocationInfo);
+					   reinterpret_cast<VkImage *>(&cur.image), &cur.imageAllocation, &cur.imageAllocationInfo);
 
+		viewCreateInfo.setImage(cur.image);
 		cur.imageView = device.createImageView(viewCreateInfo);
 
 		renderTargets.push_back(cur);
@@ -617,6 +587,14 @@ void Renderer::createRenderTargets()
 
 Model Renderer::createModel(const char *path)
 {
-	return Model(vmaAllocator, *device, *queue, *commandBuffers[0], *descriptorPool, *descriptorSetLayout, sampler,
-				 path);
+	N::ModelCreateInfo createInfo{};
+	createInfo.commandBuffer = commandBuffers[0];
+	createInfo.descriptorPool = descriptorPool;
+	createInfo.descriptorSetLayout = pipeline.getTextureSetLayout();
+	createInfo.device = device;
+	createInfo.queue = graphicsQueue;
+	createInfo.sampler = sampler;
+	createInfo.vmaAllocator = vmaAllocator;
+	return Model(createInfo, path);
 }
+} // namespace N

@@ -140,7 +140,7 @@ void PBRPipeline::create(const PBRPipelineCreateInfo &createInfo)
 
 	renderInfoLayout = createInfo.device.createDescriptorSetLayout(descriptorSetLayoutCI);
 
-	std::array<vk::DescriptorSetLayout, 2> descriptorLayouts{textureSetLayout, renderInfoLayout};
+	std::array<vk::DescriptorSetLayout, 2> descriptorLayouts{renderInfoLayout, textureSetLayout};
 
 	// Pipeline Layout
 	vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;

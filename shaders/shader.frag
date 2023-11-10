@@ -5,14 +5,14 @@ layout(location = 1) in vec2 fragTexCoords;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 0) uniform sampler2D diffuseSampler;
-layout(binding = 1) uniform sampler2D metallicSampler;
-layout(binding = 2) uniform sampler2D roughnessSampler;
-layout(binding = 3) uniform sampler2D normalSampler;
+layout(set = 0, binding = 4) uniform CameraPos {
+	vec3 pos;
+} cameraPos;
 
-layout(binding = 4) uniform vec3 cameraPos;
-layout(binding = 5) uniform vec3 lightPos[4];
-
+layout(set = 1, binding = 0) uniform sampler2D diffuseSampler;
+layout(set = 1, binding = 1) uniform sampler2D metallicSampler;
+layout(set = 1, binding = 2) uniform sampler2D roughnessSampler;
+layout(set = 1, binding = 3) uniform sampler2D normalSampler;
 
 void main() {
     //outColor = vec4(fragTexCoords, 0.0, 1.0);

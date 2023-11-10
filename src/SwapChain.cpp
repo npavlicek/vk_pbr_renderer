@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_structs.hpp>
-#include <xutility>
 
 namespace N
 {
@@ -54,6 +53,11 @@ void SwapChain::create(const SwapChainCreateInfo &createInfo)
 
 void SwapChain::destroy(const vk::Device &device)
 {
+	for (const auto &imageView : swapChainImageViews)
+	{
+		device.destroyImageView(imageView);
+	}
+
 	device.destroySwapchainKHR(swapChain);
 }
 

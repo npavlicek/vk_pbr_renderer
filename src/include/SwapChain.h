@@ -18,6 +18,7 @@ struct SwapChainCreateInfo
 class SwapChain
 {
   public:
+	constexpr SwapChain() = default;
 	constexpr SwapChain(SwapChain &rhs) = delete;
 	constexpr SwapChain &operator=(SwapChain &rhs) = delete;
 	constexpr SwapChain(SwapChain &&rhs) = default;
