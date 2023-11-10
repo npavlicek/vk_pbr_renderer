@@ -16,6 +16,7 @@ layout(set = 1, binding = 3) uniform sampler2D normalSampler;
 
 void main() {
     //outColor = vec4(fragTexCoords, 0.0, 1.0);
-    outColor = texture(diffuseSampler, fragTexCoords);
+	vec4 preColor = texture(diffuseSampler, fragTexCoords);
+    outColor = vec4(preColor.x * cameraPos.pos.x, preColor.yzw);
 	//outColor = vec4(fragColor, 1.0);
 }

@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_structs.hpp>
 
 namespace N
@@ -65,6 +66,7 @@ Renderer::Renderer(GLFWwindow *window)
 	createRenderTargets();
 	createFrameBuffers();
 	createSyncObjects();
+	createDescriptorSet();
 	initializeImGui();
 
 	sampler = Material::createSampler(device, physicalDevice.getProperties().limits.maxSamplerAnisotropy);
@@ -81,6 +83,45 @@ Renderer::Renderer(GLFWwindow *window)
 	mvpPushConstant.projection = glm::perspective(45.f, extent.width * 1.f / extent.height, 0.1f, 100.f);
 
 	commandBuffers.at(0).reset({});
+}
+
+void Renderer::createDescriptorSet()
+{
+	vk::DescriptorSetAllocateInfo dsAllocInfo{};
+	dsAllocInfo.setDescriptorPool(descriptorPool);
+	dsAllocInfo.setDescriptorSetCount(1);
+	dsAllocInfo.setSetLayouts(pipeline.getRenderInfoLayout());
+
+	cameraSettingsSet = device.allocateDescriptorSets(dsAllocInfo).at(0);
+
+	vk::BufferCreateInfo bCreateInfo{};
+	bCreateInfo.setUsage(vk::BufferUsageFlagBits::eUniformBuffer);
+	bCreateInfo.setSharingMode(vk::SharingMode::eExclusive);
+	bCreateInfo.setSize(sizeof(CameraSettings));
+
+	VmaAllocationCreateInfo bAllocInfo{};
+	bAllocInfo.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	bAllocInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT |
+					   VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	vmaCreateBuffer(vmaAllocator, reinterpret_cast<VkBufferCreateInfo *>(&bCreateInfo), &bAllocInfo,
+					reinterpret_cast<VkBuffer *>(&cameraSettingsBuffer), &cameraSettingsBufferAllocation,
+					&cameraSettingsAllocInfo);
+
+	vk::DescriptorBufferInfo dBufferInfo{};
+	dBufferInfo.setBuffer(cameraSettingsBuffer);
+	dBufferInfo.setOffset(0);
+	dBufferInfo.setRange(sizeof(CameraSettings));
+
+	vk::WriteDescriptorSet write{};
+	write.setDescriptorCount(1);
+	write.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+	write.setDstArrayElement(0);
+	write.setDstBinding(4);
+	write.setDstSet(cameraSettingsSet);
+	write.setBufferInfo(dBufferInfo);
+
+	device.updateDescriptorSets(write, nullptr);
 }
 
 void Renderer::createInstance()
@@ -142,6 +183,8 @@ Renderer::~Renderer()
 	device.destroyDescriptorPool(descriptorPool);
 
 	device.destroySampler(sampler);
+
+	vmaDestroyBuffer(vmaAllocator, cameraSettingsBuffer, cameraSettingsBufferAllocation);
 
 	for (int i = 0; i < framesInFlight; i++)
 	{
@@ -351,6 +394,10 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 
 	const vk::CommandBuffer &cb = commandBuffers[currentFrame];
 
+	CameraSettings cs;
+	cs.pos = cameraPos;
+	memcpy(cameraSettingsAllocInfo.pMappedData, &cs, sizeof(cs));
+
 	// IMGUI NEW FRAME
 
 	ImGui_ImplVulkan_NewFrame();
@@ -385,6 +432,9 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 	vk::resultCheck(res, "Could not begin the current command buffer!");
 
 	cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.getPipeline());
+
+	cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getPipelineLayout(), 0, cameraSettingsSet,
+						  nullptr);
 
 	const vk::Rect2D renderArea{{0, 0}, physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent};
 

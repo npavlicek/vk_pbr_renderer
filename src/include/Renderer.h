@@ -31,6 +31,12 @@ struct ModelSettings
 	} rotation;
 };
 
+// TODO: temporary
+struct CameraSettings
+{
+	glm::vec3 pos;
+};
+
 struct ImageObject
 {
 	vk::Image image;
@@ -110,5 +116,13 @@ class Renderer
 	void initializeImGui();
 	void createCommandBuffers();
 	void createSyncObjects();
+
+	// TODO: temp
+	void createDescriptorSet();
+	vk::DescriptorSet cameraSettingsSet;
+
+	vk::Buffer cameraSettingsBuffer;
+	VmaAllocation cameraSettingsBufferAllocation;
+	VmaAllocationInfo cameraSettingsAllocInfo;
 };
 } // namespace N
