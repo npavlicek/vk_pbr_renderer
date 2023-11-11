@@ -45,4 +45,5 @@ class Mesh
 	VmaAllocation indexBufferAllocation;
 
 	void bind(const vk::CommandBuffer &commandBuffer) const;
+	void calcTangents();
 };

@@ -20,8 +20,8 @@
 
 #include <iostream>
 
-glm::vec3 cameraPos = glm::vec3{0.f, 0.f, -5.f};
-glm::vec3 cameraFront = glm::vec3(0.f, 0.f, 1.f);
+glm::vec3 cameraPos = glm::vec3{-5.f, -5.f, 0.f};
+glm::vec3 cameraFront = glm::vec3(0.f, 0.f, 0.f);
 glm::vec3 cameraUp = glm::vec3(0.f, -1.f, 0.f);
 float cameraSpeed = 10.f;
 
@@ -37,14 +37,24 @@ bool cursorEnabled = false;
 
 GLFWwindow *window = nullptr;
 
-float lastX = 1600 / 2, lastY = 900 / 2;
+float lastX;
+float lastY;
 
 float yaw, pitch;
+
+bool firstMouse = true;
 
 void calculateCameraDir()
 {
 	double cursorX, cursorY;
 	glfwGetCursorPos(window, &cursorX, &cursorY);
+
+	if (firstMouse)
+	{
+		lastX = cursorX;
+		lastY = cursorY;
+		firstMouse = false;
+	}
 
 	float xOffset = lastX - cursorX;
 	float yOffset = cursorY - lastY;
@@ -154,7 +164,7 @@ int main()
 	// Model model = renderer.createModel("models/cow.obj");
 	// Model model2 = renderer.createModel("models/teddybear.obj");
 
-	N::Model testModel = renderer.createModel("models/rusty_sphere.obj");
+	N::Model testModel = renderer.createModel("models/space_cube.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 

@@ -2,6 +2,7 @@
 
 #include "VkErrorHandling.h"
 #include "Vertex.h"
+#include <vulkan/vulkan_enums.hpp>
 
 namespace N
 {
@@ -58,7 +59,7 @@ void PBRPipeline::create(const PBRPipelineCreateInfo &createInfo)
 	pipelineRasterizationStateCreateInfo.setRasterizerDiscardEnable(vk::False);
 	pipelineRasterizationStateCreateInfo.setPolygonMode(vk::PolygonMode::eFill);
 	pipelineRasterizationStateCreateInfo.setLineWidth(1.f);
-	pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlags{vk::CullModeFlagBits::eBack});
+	pipelineRasterizationStateCreateInfo.setCullMode(vk::CullModeFlagBits::eBack);
 	pipelineRasterizationStateCreateInfo.setFrontFace(vk::FrontFace::eCounterClockwise);
 	pipelineRasterizationStateCreateInfo.setDepthBiasEnable(vk::False);
 

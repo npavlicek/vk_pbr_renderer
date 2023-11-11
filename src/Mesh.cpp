@@ -1,7 +1,11 @@
 #include "Mesh.h"
 
 #include "CommandBuffer.h"
+#include <glm/gtx/dual_quaternion.hpp>
 #include <vulkan/vulkan_core.h>
+
+#include <glm/gtx/string_cast.hpp>
+#include <iostream>
 
 Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int materialId)
 {
@@ -11,12 +15,17 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int m
 
 	srand(time(NULL));
 
+	int i = 0;
 	for (const auto &index : shape.mesh.indices)
 	{
 		Vertex vertex;
 		vertex.pos[0] = attrib.vertices.at(3 * index.vertex_index);
 		vertex.pos[1] = attrib.vertices.at(3 * index.vertex_index + 1);
 		vertex.pos[2] = attrib.vertices.at(3 * index.vertex_index + 2);
+
+		vertex.normal[0] = attrib.normals.at(3 * index.normal_index);
+		vertex.normal[1] = attrib.normals.at(3 * index.normal_index + 1);
+		vertex.normal[2] = attrib.normals.at(3 * index.normal_index + 2);
 
 		vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
 		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
@@ -33,13 +42,46 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int m
 			vertex.texCoords = glm::vec2(0.f);
 		}
 
-		if (uniqueVertices.count(vertex) == 0)
-		{
-			uniqueVertices[vertex] = static_cast<uint16_t>(vertices.size());
-			vertices.push_back(vertex);
-		}
+		vertices.push_back(vertex);
+		indices.push_back(i);
 
-		indices.push_back(uniqueVertices.at(vertex));
+		i++;
+
+		// if (uniqueVertices.count(vertex) == 0)
+		// {
+		// 	uniqueVertices[vertex] = static_cast<uint16_t>(vertices.size());
+		// 	vertices.push_back(vertex);
+		// }
+
+		// indices.push_back(uniqueVertices.at(vertex));
+	}
+
+	calcTangents();
+}
+
+void Mesh::calcTangents()
+{
+	for (int i = 0; i < indices.size(); i += 3)
+	{
+		auto &vert1 = vertices.at(indices.at(i));
+		auto &vert2 = vertices.at(indices.at(i + 1));
+		auto &vert3 = vertices.at(indices.at(i + 2));
+
+		glm::vec3 edge1 = vert2.pos - vert1.pos;
+		glm::vec3 edge2 = vert3.pos - vert1.pos;
+		glm::vec2 deltaUV1 = vert2.texCoords - vert1.texCoords;
+		glm::vec2 deltaUV2 = vert3.texCoords - vert1.texCoords;
+
+		float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+		vert1.tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+		vert1.tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+		vert1.tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+		vert2.tangent = vert1.tangent;
+		vert3.tangent = vert1.tangent;
+
+		std::cout << glm::to_string(vert1.normal) << " " << glm::to_string(vert1.tangent) << std::endl;
 	}
 }
 

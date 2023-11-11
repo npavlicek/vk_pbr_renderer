@@ -14,14 +14,17 @@ namespace N
 Material::Material(const VmaAllocator &allocator, const vk::Device &device, const vk::Queue &queue,
 				   const vk::CommandBuffer &commandBuffer, const tinyobj::material_t &tinyObjMat)
 {
-	std::tie(diffuse, diffuseAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.diffuse_texname.c_str());
+	std::tie(diffuse, diffuseAlloc) =
+		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.diffuse_texname.c_str());
 
-	std::tie(metallic, metallicAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.metallic_texname.c_str());
+	std::tie(metallic, metallicAlloc) =
+		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.metallic_texname.c_str());
 
 	std::tie(roughness, roughnessAlloc) =
-		loadImage(allocator, queue, commandBuffer, tinyObjMat.roughness_texname.c_str());
+		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.roughness_texname.c_str());
 
-	std::tie(normal, normalAlloc) = loadImage(allocator, queue, commandBuffer, tinyObjMat.normal_texname.c_str());
+	std::tie(normal, normalAlloc) =
+		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.normal_texname.c_str());
 
 	VkImageSubresourceRange imageSubresourceRange{};
 	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -49,6 +52,8 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &roughnessView);
 	vk::resultCheck(vk::Result(res), "Could not create image view!");
 
+	// imageViewCreateInfo.format = static_cast<VkFormat>(vk::Format::eR8G8B8A8Unorm);
+
 	imageViewCreateInfo.image = normal;
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &normalView);
 	vk::resultCheck(vk::Result(res), "Could not create image view!");
@@ -69,7 +74,8 @@ void Material::destroy(const VmaAllocator &allocator, const vk::Device &device,
 }
 
 std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
-													   const vk::CommandBuffer &commandBuffer, const char *path)
+													   const vk::CommandBuffer &commandBuffer, vk::Format format,
+													   const char *path)
 {
 	int width, height, channels;
 	unsigned char *data = stbi_load(path, &width, &height, &channels, 4);
@@ -110,7 +116,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCreateInfo.arrayLayers = 1;
 	imageCreateInfo.extent = extent;
-	imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageCreateInfo.format = static_cast<VkFormat>(format);
 	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageCreateInfo.mipLevels = 1;

@@ -29,7 +29,8 @@ class Material
 
   private:
 	std::tuple<VkImage, VmaAllocation> loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
-												 const vk::CommandBuffer &commandBuffer, const char *path);
+												 const vk::CommandBuffer &commandBuffer, vk::Format format,
+												 const char *path);
 
 	VkImage diffuse;
 	VkImageView diffuseView;

@@ -1,0 +1,18 @@
+# Blender 4.0.0 Release Candidate MTL File: 'None'
+# www.blender.org
+
+newmtl space
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd res/space/space-cruiser-panels2_albedo.png
+map_Pm res/space/space-cruiser-panels2_metallic.png
+map_Pr res/space/space-cruiser-panels2_roughness.png
+norm -bm 0.500000 res/space/space-cruiser-panels2_normal-ogl.png
