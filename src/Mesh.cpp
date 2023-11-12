@@ -15,7 +15,6 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int m
 
 	srand(time(NULL));
 
-	int i = 0;
 	for (const auto &index : shape.mesh.indices)
 	{
 		Vertex vertex;
@@ -27,9 +26,11 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int m
 		vertex.normal[1] = attrib.normals.at(3 * index.normal_index + 1);
 		vertex.normal[2] = attrib.normals.at(3 * index.normal_index + 2);
 
-		vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
-		vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
-		vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
+		// vertex.color[0] = static_cast<float>(std::rand()) / RAND_MAX;
+		// vertex.color[1] = static_cast<float>(std::rand()) / RAND_MAX;
+		// vertex.color[2] = static_cast<float>(std::rand()) / RAND_MAX;
+
+		vertex.color = glm::vec3{};
 
 		if (attrib.texcoords.size() != 0)
 		{
@@ -42,18 +43,13 @@ Mesh::Mesh(const tinyobj::shape_t &shape, const tinyobj::attrib_t &attrib, int m
 			vertex.texCoords = glm::vec2(0.f);
 		}
 
-		vertices.push_back(vertex);
-		indices.push_back(i);
+		if (uniqueVertices.count(vertex) == 0)
+		{
+			uniqueVertices[vertex] = static_cast<uint16_t>(vertices.size());
+			vertices.push_back(vertex);
+		}
 
-		i++;
-
-		// if (uniqueVertices.count(vertex) == 0)
-		// {
-		// 	uniqueVertices[vertex] = static_cast<uint16_t>(vertices.size());
-		// 	vertices.push_back(vertex);
-		// }
-
-		// indices.push_back(uniqueVertices.at(vertex));
+		indices.push_back(uniqueVertices.at(vertex));
 	}
 
 	calcTangents();
@@ -74,14 +70,14 @@ void Mesh::calcTangents()
 
 		float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-		vert1.tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-		vert1.tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-		vert1.tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+		glm::vec3 newTan{};
+		newTan.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+		newTan.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+		newTan.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
 
-		vert2.tangent = vert1.tangent;
-		vert3.tangent = vert1.tangent;
-
-		std::cout << glm::to_string(vert1.normal) << " " << glm::to_string(vert1.tangent) << std::endl;
+		vert1.tangent += newTan;
+		vert2.tangent += newTan;
+		vert3.tangent += newTan;
 	}
 }
 

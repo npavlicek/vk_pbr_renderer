@@ -21,11 +21,11 @@ layout(location = 3) out mat3 TBN;
 void main() {
 	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
 	fragColor = inColor;
-    fragTexCoords = inTexCoord;
+	fragTexCoords = inTexCoord;
 	worldPos = (ubo.model * vec4(inPosition, 1.0)).xyz;
-	mat3 model = mat3(ubo.model);
-	vec3 T = normalize(model * inTangent);
-	vec3 B = normalize(model * cross(inNormal, inTangent));
-	vec3 N = normalize(model * inNormal);
+	mat4 tranModel = transpose(inverse(ubo.model));
+	vec3 T = normalize(tranModel * vec4(inTangent, 0.0)).xyz;
+	vec3 B = normalize(tranModel * vec4(cross(inNormal, inTangent), 0.0)).xyz;
+	vec3 N = normalize(tranModel * vec4(inNormal, 0.0)).xyz;
 	TBN = mat3(T, B, N);
 }

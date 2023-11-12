@@ -1,3 +1,5 @@
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 
 #include "VkExt.h"
@@ -161,10 +163,10 @@ int main()
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
-	// Model model = renderer.createModel("models/cow.obj");
-	// Model model2 = renderer.createModel("models/teddybear.obj");
+	N::Model testModel = renderer.createModel("models/lunarrock.obj");
+	N::Model secondModel = renderer.createModel("models/space_sphere.obj");
 
-	N::Model testModel = renderer.createModel("models/space_cube.obj");
+	secondModel.setModel(glm::translate(secondModel.getModel(), glm::vec3(4.0f, 0.0, 0.0)));
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -173,16 +175,9 @@ int main()
 
 	std::cout << "Took " << elapsedTime.count() << " milliseconds to load OBJ model" << std::endl;
 
-	// Texture texture = renderer.createTexture("res/monkey.png");
-
-	// renderer.updateDescriptorSets(texture);
-
-	// glm::mat4 model2Pos = glm::translate(glm::vec3(15.f, 0.f, 0.f));
-	// model2Pos = glm::scale(model2Pos, glm::vec3(0.25f));
-	// model2.setModel(model2Pos);
-
 	std::vector<N::Model> models;
 	models.push_back(std::move(testModel));
+	models.push_back(std::move(secondModel));
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -218,10 +213,13 @@ int main()
 
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
+		models.at(0).setModel(glm::rotate(models.at(0).getModel(), glm::radians(0.05f), glm::vec3(0.f, 1.f, 0.f)));
+
 		renderer.render(models, cameraPos, view);
 	}
 
 	renderer.destroyModel(models.at(0));
+	renderer.destroyModel(models.at(1));
 
 	renderer.destroy();
 

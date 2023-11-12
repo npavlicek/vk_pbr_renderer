@@ -16,7 +16,7 @@ layout(set = 1, binding = 1) uniform sampler2D metallicSampler;
 layout(set = 1, binding = 2) uniform sampler2D roughnessSampler;
 layout(set = 1, binding = 3) uniform sampler2D normalSampler;
 
-vec3 lightPos = vec3(2.0, -4.0, 2.0);
+vec3 lightPos = vec3(-2.0, -4.0, -2.0);
 
 float distGGX(vec3 N, vec3 H, float roughness) {
 	float a = roughness * roughness;
@@ -52,10 +52,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 void main() {
 	vec3 albedo = texture(diffuseSampler, fragTexCoords).rgb;
 	float metallic = texture(metallicSampler, fragTexCoords).r;
-	float roughness = texture(metallicSampler, fragTexCoords).r;
+	float roughness = texture(roughnessSampler, fragTexCoords).r;
 	vec3 Normal = texture(normalSampler, fragTexCoords).rgb;
 	Normal = normalize(Normal * 2.0 - 1.0);
 	Normal = normalize(TBN * Normal);
+	Normal *= 0.5;
 	float ao = 1.0;
 
 	// Camera position in local space
@@ -92,5 +93,5 @@ void main() {
 	vec3 ambient = vec3(0.03) * albedo * ao;
 	vec3 color = ambient + Lo;
 
-outColor = vec4(Normal, 1.0);
+	outColor = vec4(color, 1.0);
 }

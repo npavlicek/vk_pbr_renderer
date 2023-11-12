@@ -6,6 +6,8 @@
 #include "VkExt.h"
 
 #include <chrono>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <stdint.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
@@ -386,7 +388,7 @@ void Renderer::destroyModel(Model &model)
 	model.destroy(vmaAllocator, device, descriptorPool);
 }
 
-void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view)
+void Renderer::render(std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view)
 {
 	auto res = device.waitForFences(inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
 	vk::resultCheck(res, "error encountered while waiting for fence!");
@@ -416,9 +418,6 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 	ImGui::End();
 
 	// IMGUI END NEW FRAME
-
-	mvpPushConstant.view = glm::lookAt(glm::vec3(modelSettings.pos.x, modelSettings.pos.y, modelSettings.pos.z),
-									   glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, -1.f, 0.f));
 
 	auto swapChainRes =
 		device.acquireNextImageKHR(swapChain.getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame]);
@@ -456,7 +455,7 @@ void Renderer::render(const std::vector<Model> &models, glm::vec3 cameraPos, glm
 	cb.setScissor(0, renderArea);
 	cb.setViewport(0, viewport);
 
-	for (const auto &model : models)
+	for (auto &model : models)
 	{
 		mvpPushConstant.model = model.getModel();
 		mvpPushConstant.view = view;

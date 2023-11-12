@@ -55,7 +55,7 @@ class Renderer
 	~Renderer();
 
 	Model createModel(const char *path);
-	void render(const std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view);
+	void render(std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view);
 	void destroy();
 	void destroyModel(Model &model);
 
