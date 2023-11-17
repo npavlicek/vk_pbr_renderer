@@ -24,7 +24,7 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.roughness_texname.c_str());
 
 	std::tie(normal, normalAlloc) =
-		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Unorm, tinyObjMat.normal_texname.c_str());
+		loadImage(allocator, queue, commandBuffer, vk::Format::eR8G8B8A8Srgb, tinyObjMat.normal_texname.c_str());
 
 	VkImageSubresourceRange imageSubresourceRange{};
 	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -52,7 +52,7 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &roughnessView);
 	vk::resultCheck(vk::Result(res), "Could not create image view!");
 
-	imageViewCreateInfo.format = static_cast<VkFormat>(vk::Format::eR8G8B8A8Unorm);
+	// imageViewCreateInfo.format = static_cast<VkFormat>(vk::Format::eR8G8B8A8Unorm);
 
 	imageViewCreateInfo.image = normal;
 	res = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &normalView);
@@ -78,7 +78,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 													   const char *path)
 {
 	int width, height, channels;
-	unsigned char *data = stbi_load(path, &width, &height, &channels, 4);
+	unsigned char *data = stbi_load(std::format("res/ridged-foam1-bl/{}", path).c_str(), &width, &height, &channels, 4);
 
 	if (!data)
 	{

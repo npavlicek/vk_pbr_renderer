@@ -16,7 +16,7 @@ layout(set = 1, binding = 1) uniform sampler2D metallicSampler;
 layout(set = 1, binding = 2) uniform sampler2D roughnessSampler;
 layout(set = 1, binding = 3) uniform sampler2D normalSampler;
 
-vec3 lightPos = vec3(-2.0, -4.0, -2.0);
+vec3 lightPos = vec3(-5.0, -4.0, -5.0);
 
 float distGGX(vec3 N, vec3 H, float roughness) {
 	float a = roughness * roughness;
@@ -69,7 +69,7 @@ void main() {
 	vec3 halfWayVector = normalize(localCamPos + localLight);
 	float distance = length(lightPos - worldPos);
 	float attenuation = 1.0 / (distance * distance);
-	vec3 radiance = vec3(20.0, 20.0, 20.0) * attenuation;
+	vec3 radiance = vec3(40.0, 40.0, 40.0) * attenuation;
 
 	// Cook torrance equation
 	float NDF = distGGX(Normal, halfWayVector, roughness);

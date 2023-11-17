@@ -163,10 +163,7 @@ int main()
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
-	N::Model testModel = renderer.createModel("models/lunarrock.obj");
-	N::Model secondModel = renderer.createModel("models/space_sphere.obj");
-
-	secondModel.setModel(glm::translate(secondModel.getModel(), glm::vec3(4.0f, 0.0, 0.0)));
+	N::Model testModel = renderer.createModel("models/thing.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
@@ -177,7 +174,6 @@ int main()
 
 	std::vector<N::Model> models;
 	models.push_back(std::move(testModel));
-	models.push_back(std::move(secondModel));
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -213,13 +209,13 @@ int main()
 
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-		models.at(0).setModel(glm::rotate(models.at(0).getModel(), glm::radians(0.05f), glm::vec3(0.f, 1.f, 0.f)));
+		models.at(0).setModel(
+			glm::rotate(models.at(0).getModel(), glm::radians(15.f * delta), glm::vec3(0.f, 1.f, 0.f)));
 
 		renderer.render(models, cameraPos, view);
 	}
 
 	renderer.destroyModel(models.at(0));
-	renderer.destroyModel(models.at(1));
 
 	renderer.destroy();
 

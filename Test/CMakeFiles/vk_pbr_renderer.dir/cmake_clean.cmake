@@ -1,0 +1,43 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/backends/imgui_impl_glfw.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/backends/imgui_impl_glfw.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/backends/imgui_impl_vulkan.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/backends/imgui_impl_vulkan.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_demo.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_demo.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_draw.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_draw.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_tables.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_tables.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_widgets.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/imgui/imgui_widgets.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/CommandBuffer.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/CommandBuffer.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Material.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Material.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Mesh.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Mesh.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Model.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Model.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/PBRPipeline.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/PBRPipeline.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/RenderPass.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/RenderPass.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Renderer.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/Renderer.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/SwapChain.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/SwapChain.cpp.obj.d"
+  "CMakeFiles/vk_pbr_renderer.dir/src/main.cpp.obj"
+  "CMakeFiles/vk_pbr_renderer.dir/src/main.cpp.obj.d"
+  "libvk_pbr_renderer.dll.a"
+  "vk_pbr_renderer.exe"
+  "vk_pbr_renderer.exe.manifest"
+  "vk_pbr_renderer.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/vk_pbr_renderer.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
