@@ -1,3 +1,0 @@
-C:/ProgrammingProjects/vk_pbr_renderer/Test/CMakeFiles/vk_pbr_renderer.dir
-C:/ProgrammingProjects/vk_pbr_renderer/Test/CMakeFiles/edit_cache.dir
-C:/ProgrammingProjects/vk_pbr_renderer/Test/CMakeFiles/rebuild_cache.dir

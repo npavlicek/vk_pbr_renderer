@@ -1,1 +1,0 @@
--IC:/ProgrammingProjects/vk_pbr_renderer -IC:/ProgrammingProjects/vk_pbr_renderer/imgui -IC:/ProgrammingProjects/vk_pbr_renderer/src/include -isystem C:/ProgrammingProjects/vk_pbr_renderer/include -isystem C:/VulkanSDK/1.3.261.1/Include
