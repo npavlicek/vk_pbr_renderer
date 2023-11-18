@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <vulkan/vulkan.hpp>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include "tiny_obj_loader.h"
 
 #include "Vertex.h"

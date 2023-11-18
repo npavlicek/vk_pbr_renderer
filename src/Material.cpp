@@ -78,7 +78,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 													   const char *path)
 {
 	int width, height, channels;
-	unsigned char *data = stbi_load(std::format("res/ridged-foam1-bl/{}", path).c_str(), &width, &height, &channels, 4);
+	unsigned char *data = stbi_load(path, &width, &height, &channels, 4);
 
 	if (!data)
 	{

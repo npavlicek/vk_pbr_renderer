@@ -1,8 +1,11 @@
 #include "SwapChain.h"
+#include <iostream>
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_structs.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
 namespace N
 {
@@ -68,7 +71,7 @@ void SwapChain::selectPresentMode(const SwapChainCreateInfo &createInfo)
 	std::optional<vk::PresentModeKHR> selectedPresentMode;
 	for (const auto &mode : presentModes)
 	{
-		if (mode == vk::PresentModeKHR::eMailbox)
+		if (mode == vk::PresentModeKHR::eFifo)
 		{
 			selectedPresentMode = mode;
 			break;

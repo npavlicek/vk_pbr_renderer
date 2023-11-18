@@ -4,7 +4,7 @@
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include <GLFW/glfw3.h>
 
 #include <imgui/backends/imgui_impl_glfw.h>

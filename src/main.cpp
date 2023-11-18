@@ -15,7 +15,7 @@
 	printf(fmt, __VA_ARGS__);          \
 	printf("\n");
 #define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -163,7 +163,7 @@ int main()
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
-	N::Model testModel = renderer.createModel("models/thing.obj");
+	N::Model testModel = renderer.createModel("models/rusty_sphere.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 
