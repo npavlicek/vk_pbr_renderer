@@ -72,8 +72,6 @@ class Renderer
 	vk::DescriptorPool descriptorPool;
 	vk::CommandPool commandPool;
 
-	vk::Sampler sampler;
-
 	int graphicsQueueIndex;
 	vk::SampleCountFlagBits samples;
 	vk::Format depthFormat;

@@ -1,0 +1,18 @@
+# Blender 4.0.1 MTL File: 'None'
+# www.blender.org
+
+newmtl 08_-_Default
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 1
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd res/gun/Cerberus_A.tga
+map_Pm res/gun/Cerberus_M.tga
+map_Pr res/gun/Cerberus_R.tga
+norm -bm 1.000000 res/gun/Cerberus_N.tga

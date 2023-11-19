@@ -56,7 +56,7 @@ void main() {
 	vec3 Normal = texture(normalSampler, fragTexCoords).rgb;
 	Normal = normalize(Normal * 2.0 - 1.0);
 	Normal = normalize(TBN * Normal);
-	float ao = 1.0;
+	float ao = 3.0;
 
 	// Camera position in local space
 	vec3 localCamPos = normalize(cameraPos.pos - worldPos);
@@ -68,7 +68,7 @@ void main() {
 	vec3 halfWayVector = normalize(localCamPos + localLight);
 	float distance = length(lightPos - worldPos);
 	float attenuation = 1.0 / (distance * distance);
-	vec3 radiance = vec3(30.f, 30.f, 30.f) * attenuation;
+	vec3 radiance = vec3(0.f, 50.f, 0.f) * attenuation;
 
 	// Cook torrance equation
 	float NDF = distGGX(Normal, halfWayVector, roughness);

@@ -19,7 +19,7 @@ struct ModelCreateInfo
 	vk::CommandBuffer commandBuffer;
 	vk::DescriptorPool descriptorPool;
 	vk::DescriptorSetLayout descriptorSetLayout;
-	vk::Sampler sampler;
+	float maxAnisotropy;
 };
 
 class Model
@@ -48,7 +48,7 @@ class Model
 	}
 
 	void draw(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const;
-	void destroy(const VmaAllocator &vmaAllocator, const vk::Device &device, const vk::DescriptorPool &descriptorPool);
+	void destroy(const VmaAllocator &vmaAllocator, const vk::Device &device);
 
   private:
 	std::vector<Mesh> meshes;

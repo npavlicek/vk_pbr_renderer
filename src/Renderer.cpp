@@ -8,11 +8,14 @@
 #include <chrono>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <stdexcept>
 #include <stdint.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
 namespace N
 {
@@ -70,8 +73,6 @@ Renderer::Renderer(GLFWwindow *window)
 	createSyncObjects();
 	createDescriptorSet();
 	initializeImGui();
-
-	sampler = Material::createSampler(device, physicalDevice.getProperties().limits.maxSamplerAnisotropy);
 
 	vk::Extent2D extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
 
@@ -183,8 +184,6 @@ Renderer::~Renderer()
 
 	device.resetDescriptorPool(descriptorPool);
 	device.destroyDescriptorPool(descriptorPool);
-
-	device.destroySampler(sampler);
 
 	vmaDestroyBuffer(vmaAllocator, cameraSettingsBuffer, cameraSettingsBufferAllocation);
 
@@ -304,19 +303,25 @@ void Renderer::selectPhysicalDevice()
 {
 	auto physicalDevices = instance.enumeratePhysicalDevices();
 
+	std::optional<vk::PhysicalDevice> selectedDevice;
 	for (const auto &cur : physicalDevices)
 	{
 		if (cur.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
 		{
-			physicalDevice = cur;
+			selectedDevice = cur;
 			break;
 		}
 	}
+
+	if (!selectedDevice.has_value()) 
+		throw std::runtime_error("Could not find a suitable physical device!\n");
+
+	physicalDevice = selectedDevice.value();
 }
 
 void Renderer::createDevice()
 {
-	auto queueFamilyProperties = physicalDevice.getQueueFamilyProperties()[graphicsQueueIndex];
+	auto queueFamilyProperties = physicalDevice.getQueueFamilyProperties().at(graphicsQueueIndex);
 
 	std::vector<float> queuePriorities(queueFamilyProperties.queueCount, 1.f);
 
@@ -385,7 +390,7 @@ void Renderer::destroyModel(Model &model)
 {
 	device.waitIdle();
 
-	model.destroy(vmaAllocator, device, descriptorPool);
+	model.destroy(vmaAllocator, device);
 }
 
 void Renderer::render(std::vector<Model> &models, glm::vec3 cameraPos, glm::mat4 view)
@@ -642,8 +647,8 @@ Model Renderer::createModel(const char *path)
 	createInfo.descriptorSetLayout = pipeline.getTextureSetLayout();
 	createInfo.device = device;
 	createInfo.queue = graphicsQueue;
-	createInfo.sampler = sampler;
 	createInfo.vmaAllocator = vmaAllocator;
+	createInfo.maxAnisotropy = physicalDevice.getProperties().limits.maxSamplerAnisotropy;
 	return Model(createInfo, path);
 }
 } // namespace N

@@ -1,3 +1,4 @@
+#include <GLFW/glfw3.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -156,14 +157,13 @@ int main()
 	}
 
 	glfwSetKeyCallback(window, keyCallback);
-
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	N::Renderer renderer(window);
 
 	auto objLoadStartTime = std::chrono::high_resolution_clock::now();
 
-	N::Model testModel = renderer.createModel("models/rusty_sphere.obj");
+	N::Model testModel = renderer.createModel("models/gun.obj");
 
 	auto objLoadEndTime = std::chrono::high_resolution_clock::now();
 

@@ -13,8 +13,8 @@ Model::Model(const ModelCreateInfo &createInfo, const char *path)
 	for (const auto &material : objReader.GetMaterials())
 	{
 		Material cur(createInfo.vmaAllocator, createInfo.device, createInfo.queue, createInfo.commandBuffer, material);
-		cur.createDescriptorSets(createInfo.device, createInfo.descriptorPool, createInfo.descriptorSetLayout,
-								 createInfo.sampler);
+		cur.createSampler(createInfo.device, createInfo.maxAnisotropy);
+		cur.createDescriptorSets(createInfo.device, createInfo.descriptorPool, createInfo.descriptorSetLayout);
 		materials.push_back(std::move(cur));
 	}
 
@@ -35,12 +35,11 @@ void Model::draw(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayou
 	}
 }
 
-void Model::destroy(const VmaAllocator &vmaAllocator, const vk::Device &device,
-					const vk::DescriptorPool &descriptorPool)
+void Model::destroy(const VmaAllocator &vmaAllocator, const vk::Device &device)
 {
 	for (auto &mat : materials)
 	{
-		mat.destroy(vmaAllocator, device, descriptorPool);
+		mat.destroy(vmaAllocator, device);
 	}
 
 	for (auto &mesh : meshes)

@@ -4,10 +4,13 @@
 
 #include "CommandBuffer.h"
 
+#include <iostream>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
@@ -62,9 +65,11 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	vk::resultCheck(vk::Result(res), "Could not create image view!");
 }
 
-void Material::destroy(const VmaAllocator &allocator, const vk::Device &device,
-					   const vk::DescriptorPool &descriptorPool)
+void Material::destroy(const VmaAllocator &allocator, const vk::Device &device)
+
 {
+	device.destroySampler(sampler);
+
 	vkDestroyImageView(device, diffuseView, nullptr);
 	vkDestroyImageView(device, metallicView, nullptr);
 	vkDestroyImageView(device, roughnessView, nullptr);
@@ -81,9 +86,9 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 													   const char *path)
 {
 	int loadedWidth, loadedHeight, channels;
-	width = loadedWidth;
-	height = loadedHeight;
 	unsigned char *data = stbi_load(path, &loadedWidth, &loadedHeight, &channels, 4);
+	height = static_cast<uint32_t>(loadedHeight);
+	width = static_cast<uint32_t>(loadedWidth);
 
 	if (!data)
 	{
@@ -130,7 +135,8 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageCreateInfo.usage =
+		VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	VmaAllocationCreateInfo imageAllocationCreateInfo{};
 	imageAllocationCreateInfo.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
@@ -221,15 +227,11 @@ void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &
 	vk::ImageSubresourceRange isr{};
 	isr.setAspectMask(vk::ImageAspectFlagBits::eColor);
 	isr.setLayerCount(1);
-	isr.setLevelCount(mipLevels);
+	isr.setLevelCount(1);
 	isr.setBaseArrayLayer(0);
 
 	vk::ImageMemoryBarrier barrier{};
 	barrier.setImage(image);
-	barrier.setNewLayout(vk::ImageLayout::eTransferSrcOptimal);
-	barrier.setOldLayout(vk::ImageLayout::eTransferDstOptimal);
-	barrier.setDstAccessMask(vk::AccessFlagBits::eTransferRead);
-	barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
 
 	int32_t mipWidth = width;
 	int32_t mipHeight = height;
@@ -238,7 +240,10 @@ void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &
 	{
 		isr.setBaseMipLevel(i - 1);
 		barrier.setSubresourceRange(isr);
-
+		barrier.setNewLayout(vk::ImageLayout::eTransferSrcOptimal);
+		barrier.setOldLayout(vk::ImageLayout::eTransferDstOptimal);
+		barrier.setDstAccessMask(vk::AccessFlagBits::eTransferRead);
+		barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
 		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
 									  vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
 
@@ -266,9 +271,10 @@ void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &
 		dstLayers.setBaseArrayLayer(0);
 		dstLayers.setLayerCount(1);
 		dstLayers.setMipLevel(i);
+		blit.setDstSubresource(dstLayers);
 
-		commandBuffer.blitImage(image, vk::ImageLayout::eTransferDstOptimal, image,
-								vk::ImageLayout::eTransferSrcOptimal, blit, vk::Filter::eLinear);
+		commandBuffer.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, image,
+								vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
 
 		barrier.setOldLayout(vk::ImageLayout::eTransferSrcOptimal);
 		barrier.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -286,9 +292,9 @@ void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &
 
 	isr.setBaseMipLevel(mipLevels - 1);
 	barrier.setSubresourceRange(isr);
-	barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferRead);
+	barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
 	barrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
-	barrier.setOldLayout(vk::ImageLayout::eTransferSrcOptimal);
+	barrier.setOldLayout(vk::ImageLayout::eTransferDstOptimal);
 	barrier.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
 
 	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
@@ -297,7 +303,7 @@ void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &
 	CommandBuffer::endSTC(commandBuffer, queue);
 }
 
-vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotropy)
+void Material::createSampler(const vk::Device &device, float maxAnisotropy)
 {
 	vk::SamplerCreateInfo samplerCreateInfo{};
 	samplerCreateInfo.setAddressModeU(vk::SamplerAddressMode::eClampToEdge);
@@ -314,8 +320,7 @@ vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotrop
 	samplerCreateInfo.setMaxAnisotropy(maxAnisotropy);
 	samplerCreateInfo.setMaxLod(mipLevels);
 	samplerCreateInfo.setMinLod(0.f);
-
-	return device.createSampler(samplerCreateInfo);
+	this->sampler = device.createSampler(samplerCreateInfo);
 }
 
 void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const
@@ -324,7 +329,7 @@ void Material::bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLa
 }
 
 void Material::createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,
-									const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler)
+									const vk::DescriptorSetLayout &setLayout)
 {
 	vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{};
 	descriptorSetAllocateInfo.setDescriptorPool(pool);

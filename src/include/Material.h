@@ -21,17 +21,19 @@ class Material
 	Material &operator=(Material &&) = default;
 
 	void bind(const vk::CommandBuffer &commandBuffer, const vk::PipelineLayout &pipelineLayout) const;
-	void destroy(const VmaAllocator &allocator, const vk::Device &device, const vk::DescriptorPool &descriptorPool);
+	void destroy(const VmaAllocator &allocator, const vk::Device &device);
 
-	static vk::Sampler createSampler(const vk::Device &device, float maxAnisotropy);
+	void createSampler(const vk::Device &device, float maxAnisotropy);
 	void createDescriptorSets(const vk::Device &device, const vk::DescriptorPool &pool,
-							  const vk::DescriptorSetLayout &setLayout, const vk::Sampler &sampler);
+							  const vk::DescriptorSetLayout &setLayout);
 
   private:
 	std::tuple<VkImage, VmaAllocation> loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
 												 const vk::CommandBuffer &commandBuffer, vk::Format format,
 												 const char *path);
 	void generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const vk::Image &image);
+
+	vk::Sampler sampler;
 
 	VkImage diffuse;
 	VkImageView diffuseView;
