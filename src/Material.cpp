@@ -4,10 +4,13 @@
 
 #include "CommandBuffer.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_handles.hpp>
-
-#include <format>
+#include <vulkan/vulkan_structs.hpp>
 
 namespace N
 {
@@ -31,7 +34,7 @@ Material::Material(const VmaAllocator &allocator, const vk::Device &device, cons
 	imageSubresourceRange.baseArrayLayer = 0;
 	imageSubresourceRange.baseMipLevel = 0;
 	imageSubresourceRange.layerCount = 1;
-	imageSubresourceRange.levelCount = 1;
+	imageSubresourceRange.levelCount = mipLevels;
 
 	VkImageViewCreateInfo imageViewCreateInfo{};
 	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -77,13 +80,17 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 													   const vk::CommandBuffer &commandBuffer, vk::Format format,
 													   const char *path)
 {
-	int width, height, channels;
-	unsigned char *data = stbi_load(path, &width, &height, &channels, 4);
+	int loadedWidth, loadedHeight, channels;
+	width = loadedWidth;
+	height = loadedHeight;
+	unsigned char *data = stbi_load(path, &loadedWidth, &loadedHeight, &channels, 4);
 
 	if (!data)
 	{
-		throw std::runtime_error(std::format("Could not open material texture: {}", path));
+		throw std::runtime_error(std::string("Failed to load image: ").append(path));
 	}
+
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height))) + 1);
 
 	VkBufferCreateInfo bufferCreateInfo{};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -119,7 +126,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	imageCreateInfo.format = static_cast<VkFormat>(format);
 	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.mipLevels = mipLevels;
 	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -141,7 +148,7 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	imageSubresourceRange.baseArrayLayer = 0;
 	imageSubresourceRange.baseMipLevel = 0;
 	imageSubresourceRange.layerCount = 1;
-	imageSubresourceRange.levelCount = 1;
+	imageSubresourceRange.levelCount = mipLevels;
 	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 	VkImageMemoryBarrier imageMemoryBarrier{};
@@ -183,7 +190,8 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	//
 
 	// Transfer from transfer dst to shader optimal
-	CommandBuffer::beginSTC(commandBuffer);
+	// Commented out because we do this while generating mip maps
+	/* CommandBuffer::beginSTC(commandBuffer);
 
 	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -194,14 +202,99 @@ std::tuple<VkImage, VmaAllocation> Material::loadImage(const VmaAllocator &alloc
 	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
 								  vk::DependencyFlagBits::eByRegion, 0, 0, vk::ImageMemoryBarrier(imageMemoryBarrier));
 
-	CommandBuffer::endSTC(commandBuffer, queue);
+	CommandBuffer::endSTC(commandBuffer, queue); */
 	//
+
+	generateMipMaps(queue, commandBuffer, image);
 
 	free(reinterpret_cast<void *>(data));
 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	return std::make_tuple(image, imageAllocation);
+}
+
+void Material::generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const vk::Image &image)
+{
+	CommandBuffer::beginSTC(commandBuffer);
+
+	vk::ImageSubresourceRange isr{};
+	isr.setAspectMask(vk::ImageAspectFlagBits::eColor);
+	isr.setLayerCount(1);
+	isr.setLevelCount(mipLevels);
+	isr.setBaseArrayLayer(0);
+
+	vk::ImageMemoryBarrier barrier{};
+	barrier.setImage(image);
+	barrier.setNewLayout(vk::ImageLayout::eTransferSrcOptimal);
+	barrier.setOldLayout(vk::ImageLayout::eTransferDstOptimal);
+	barrier.setDstAccessMask(vk::AccessFlagBits::eTransferRead);
+	barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
+
+	int32_t mipWidth = width;
+	int32_t mipHeight = height;
+
+	for (uint32_t i = 1; i < mipLevels; i++)
+	{
+		isr.setBaseMipLevel(i - 1);
+		barrier.setSubresourceRange(isr);
+
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
+									  vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
+
+		vk::ImageBlit blit{};
+
+		std::array<vk::Offset3D, 2> srcOffset;
+		srcOffset[0] = vk::Offset3D{0, 0, 0};
+		srcOffset[1] = vk::Offset3D{mipWidth, mipHeight, 1};
+		blit.setSrcOffsets(srcOffset);
+
+		vk::ImageSubresourceLayers srcLayers{};
+		srcLayers.setMipLevel(i - 1);
+		srcLayers.setLayerCount(1);
+		srcLayers.setBaseArrayLayer(0);
+		srcLayers.setAspectMask(vk::ImageAspectFlagBits::eColor);
+		blit.setSrcSubresource(srcLayers);
+
+		std::array<vk::Offset3D, 2> dstOffset;
+		dstOffset[0] = vk::Offset3D{0, 0, 0};
+		dstOffset[1] = vk::Offset3D{mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1};
+		blit.setDstOffsets(dstOffset);
+
+		vk::ImageSubresourceLayers dstLayers{};
+		dstLayers.setAspectMask(vk::ImageAspectFlagBits::eColor);
+		dstLayers.setBaseArrayLayer(0);
+		dstLayers.setLayerCount(1);
+		dstLayers.setMipLevel(i);
+
+		commandBuffer.blitImage(image, vk::ImageLayout::eTransferDstOptimal, image,
+								vk::ImageLayout::eTransferSrcOptimal, blit, vk::Filter::eLinear);
+
+		barrier.setOldLayout(vk::ImageLayout::eTransferSrcOptimal);
+		barrier.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+		barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferRead);
+		barrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
+
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
+									  vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
+
+		if (mipWidth > 1)
+			mipWidth /= 2;
+		if (mipHeight > 1)
+			mipHeight /= 2;
+	}
+
+	isr.setBaseMipLevel(mipLevels - 1);
+	barrier.setSubresourceRange(isr);
+	barrier.setSrcAccessMask(vk::AccessFlagBits::eTransferRead);
+	barrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
+	barrier.setOldLayout(vk::ImageLayout::eTransferSrcOptimal);
+	barrier.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+
+	commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
+								  vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
+
+	CommandBuffer::endSTC(commandBuffer, queue);
 }
 
 vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotropy)
@@ -219,7 +312,7 @@ vk::Sampler Material::createSampler(const vk::Device &device, float maxAnisotrop
 	samplerCreateInfo.setMagFilter(vk::Filter::eLinear);
 	samplerCreateInfo.setMinFilter(vk::Filter::eLinear);
 	samplerCreateInfo.setMaxAnisotropy(maxAnisotropy);
-	samplerCreateInfo.setMaxLod(0.f);
+	samplerCreateInfo.setMaxLod(mipLevels);
 	samplerCreateInfo.setMinLod(0.f);
 
 	return device.createSampler(samplerCreateInfo);

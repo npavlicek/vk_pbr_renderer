@@ -31,6 +31,7 @@ class Material
 	std::tuple<VkImage, VmaAllocation> loadImage(const VmaAllocator &allocator, const vk::Queue &queue,
 												 const vk::CommandBuffer &commandBuffer, vk::Format format,
 												 const char *path);
+	void generateMipMaps(const vk::Queue &queue, const vk::CommandBuffer &commandBuffer, const vk::Image &image);
 
 	VkImage diffuse;
 	VkImageView diffuseView;
@@ -49,5 +50,9 @@ class Material
 	VmaAllocation normalAlloc;
 
 	std::vector<vk::DescriptorSet> descriptorSets;
+
+	uint32_t mipLevels;
+	uint32_t width;
+	uint32_t height;
 };
 } // namespace N
