@@ -77,7 +77,7 @@ Renderer::Renderer(GLFWwindow *window)
 
 	vk::Extent2D extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
 
-	clearColorValue = vk::ClearColorValue{0.f, 0.2f, 0.7f, 1.f};
+	clearColorValue = vk::ClearColorValue{0.f, 0.2f, 0.5f, 1.f};
 	clearDepthValue = vk::ClearDepthStencilValue{1.f, 0};
 	clearValues.push_back(clearColorValue);
 	clearValues.push_back(clearDepthValue);
@@ -299,7 +299,6 @@ void Renderer::createFrameBuffers()
 	}
 }
 
-// TODO: make this function more specific for what gpu features i need
 void Renderer::selectPhysicalDevice()
 {
 	auto physicalDevices = instance.enumeratePhysicalDevices();

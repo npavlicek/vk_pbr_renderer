@@ -147,7 +147,7 @@ int main()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	window = glfwCreateWindow(1600, 900, "Testing Vulkan!", nullptr, nullptr);
+	window = glfwCreateWindow(1600, 900, "vk_pbr_renderer", nullptr, nullptr);
 
 	if (!window)
 	{
@@ -210,7 +210,7 @@ int main()
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
 		models.at(0).setModel(
-			glm::rotate(models.at(0).getModel(), glm::radians(0.f * delta), glm::vec3(0.f, 1.f, 0.f)));
+			glm::rotate(models.at(0).getModel(), glm::radians(15.f * delta), glm::vec3(0.f, 1.f, 0.f)));
 
 		renderer.render(models, cameraPos, view);
 	}
