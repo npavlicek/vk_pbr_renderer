@@ -16,6 +16,7 @@
 #include <vulkan/vulkan_handles.hpp>
 #include <vulkan/vulkan_structs.hpp>
 #include <vulkan/vulkan_to_string.hpp>
+#include <optional>
 
 namespace N
 {
@@ -76,7 +77,7 @@ Renderer::Renderer(GLFWwindow *window)
 
 	vk::Extent2D extent = physicalDevice.getSurfaceCapabilitiesKHR(surface).currentExtent;
 
-	clearColorValue = vk::ClearColorValue{0.f, 0.f, 0.f, 1.f};
+	clearColorValue = vk::ClearColorValue{0.f, 0.2f, 0.7f, 1.f};
 	clearDepthValue = vk::ClearDepthStencilValue{1.f, 0};
 	clearValues.push_back(clearColorValue);
 	clearValues.push_back(clearDepthValue);
