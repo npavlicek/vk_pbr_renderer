@@ -3,6 +3,7 @@
 A simple PBR renderer written in CPP using Vulkan. May expand into something more in the future, or just be used as boilerplate for other projects. Still in its early stages.
 
 ## Demo
+https://github.com/npavlicek/vk_pbr_renderer/assets/25162944/78a84402-cf8a-43b5-8bb9-c5ee1b1ecf51
 
 ## Dependencies
 
