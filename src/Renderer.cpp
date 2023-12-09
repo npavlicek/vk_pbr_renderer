@@ -62,8 +62,25 @@ Renderer::Renderer(GLFWwindow *window)
 	renderPassCreateInfo.samples = samples;
 	renderPass.create(renderPassCreateInfo);
 
+	vk::PushConstantRange pushConstant;
+	pushConstant.setSize(1);
+	pushConstant.setOffset(0);
+	pushConstant.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
+	N::SkyboxPipelineCreateInfo skyboxPipelineCreateInfo{};
+	skyboxPipelineCreateInfo.vertexShaderCode = loadShaderCode("shaders/skyboxVert.spv");
+	skyboxPipelineCreateInfo.fragmentShaderCode = loadShaderCode("shaders/skyboxFrag.spv");
+	skyboxPipelineCreateInfo.pushConstant = pushConstant;
+	skyboxPipelineCreateInfo.samples = samples;
+	skyboxPipelineCreateInfo.device = device;
+	skyboxPipelineCreateInfo.renderPass = renderPass.get();
+	skyboxPipeline.create(skyboxPipelineCreateInfo);
+
 	N::PBRPipelineCreateInfo pipelineCreateInfo;
+	pipelineCreateInfo.vertexShaderCode = loadShaderCode("shaders/vert.spv");
+	pipelineCreateInfo.fragmentShaderCode = loadShaderCode("shaders/frag.spv");
 	pipelineCreateInfo.device = device;
+	pipelineCreateInfo.pushConstant = pushConstant;
 	pipelineCreateInfo.renderPass = renderPass.get();
 	pipelineCreateInfo.samples = samples;
 	pipeline.create(pipelineCreateInfo);
@@ -87,6 +104,38 @@ Renderer::Renderer(GLFWwindow *window)
 	mvpPushConstant.projection = glm::perspective(45.f, extent.width * 1.f / extent.height, 0.1f, 100.f);
 
 	commandBuffers.at(0).reset({});
+}
+
+std::vector<uint32_t> Renderer::loadShaderCode(const char *path)
+{
+	std::ifstream shaderFile(path, std::ios::in | std::ios::binary);
+
+	std::streamsize size;
+
+	shaderFile.seekg(0, std::ios::end);
+	size = shaderFile.tellg();
+	shaderFile.seekg(0, std::ios::beg);
+
+	std::vector<uint32_t> res;
+
+	if (shaderFile.is_open())
+	{
+		uint32_t current;
+		while (shaderFile.tellg() < size)
+		{
+			shaderFile.read(reinterpret_cast<char *>(&current), sizeof(current));
+			res.push_back(current);
+		}
+	}
+	else
+	{
+		std::cerr << "Could not open shader file!" << std::endl;
+		throw std::runtime_error(path);
+	}
+
+	shaderFile.close();
+
+	return res;
 }
 
 void Renderer::createDescriptorSet()
@@ -313,7 +362,7 @@ void Renderer::selectPhysicalDevice()
 		}
 	}
 
-	if (!selectedDevice.has_value()) 
+	if (!selectedDevice.has_value())
 		throw std::runtime_error("Could not find a suitable physical device!\n");
 
 	physicalDevice = selectedDevice.value();

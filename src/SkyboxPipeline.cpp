@@ -1,12 +1,13 @@
-#include "PBRPipeline.h"
+#include "SkyboxPipeline.h"
 
 #include "VkErrorHandling.h"
 #include "Vertex.h"
 #include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 namespace N
 {
-void PBRPipeline::create(const PBRPipelineCreateInfo &createInfo)
+void SkyboxPipeline::create(const SkyboxPipelineCreateInfo &createInfo)
 {
 	createShaderModules(createInfo);
 
@@ -85,64 +86,29 @@ void PBRPipeline::create(const PBRPipelineCreateInfo &createInfo)
 	colorBlendAttachmentState.setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
 												vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 
-	vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo;
+	vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo{};
 	pipelineColorBlendStateCreateInfo.setAttachmentCount(1);
 	pipelineColorBlendStateCreateInfo.setAttachments(colorBlendAttachmentState);
 	pipelineColorBlendStateCreateInfo.setLogicOpEnable(vk::False);
 
-	// Descriptor Set Layouts
-	vk::DescriptorSetLayoutBinding diffuseSamplerBinding{};
-	diffuseSamplerBinding.setBinding(0);
-	diffuseSamplerBinding.setDescriptorCount(1);
-	diffuseSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	diffuseSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+	// Pipeline Layout	
+	vk::DescriptorSetLayoutBinding cubeMapBinding{};
+	cubeMapBinding.setBinding(0);
+	cubeMapBinding.setDescriptorCount(1);
+	cubeMapBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+	cubeMapBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
 
-	vk::DescriptorSetLayoutBinding metallicSamplerBinding{};
-	metallicSamplerBinding.setBinding(1);
-	metallicSamplerBinding.setDescriptorCount(1);
-	metallicSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	metallicSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+	vk::DescriptorSetLayoutCreateInfo cubeMapLayoutCreateInfo{};
+	cubeMapLayoutCreateInfo.setBindingCount(1);
+	cubeMapLayoutCreateInfo.setBindings(cubeMapBinding);
 
-	vk::DescriptorSetLayoutBinding roughnessSamplerBinding{};
-	roughnessSamplerBinding.setBinding(2);
-	roughnessSamplerBinding.setDescriptorCount(1);
-	roughnessSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	roughnessSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+	cubeMapLayout = createInfo.device.createDescriptorSetLayout(cubeMapLayoutCreateInfo);
 
-	vk::DescriptorSetLayoutBinding normalSamplerBinding{};
-	normalSamplerBinding.setBinding(3);
-	normalSamplerBinding.setDescriptorCount(1);
-	normalSamplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-	normalSamplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-	std::array<vk::DescriptorSetLayoutBinding, 4> textureBindings{diffuseSamplerBinding, metallicSamplerBinding,
-																  roughnessSamplerBinding, normalSamplerBinding};
-
-	vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCI{};
-	descriptorSetLayoutCI.setBindingCount(textureBindings.size());
-	descriptorSetLayoutCI.setBindings(textureBindings);
-
-	textureSetLayout = createInfo.device.createDescriptorSetLayout(descriptorSetLayoutCI);
-
-	vk::DescriptorSetLayoutBinding renderInfoBinding{};
-	renderInfoBinding.setBinding(4);
-	renderInfoBinding.setDescriptorCount(1);
-	renderInfoBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-	renderInfoBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-
-	descriptorSetLayoutCI.setBindingCount(1);
-	descriptorSetLayoutCI.setBindings(renderInfoBinding);
-
-	renderInfoLayout = createInfo.device.createDescriptorSetLayout(descriptorSetLayoutCI);
-
-	std::array<vk::DescriptorSetLayout, 2> descriptorLayouts{renderInfoLayout, textureSetLayout};
-
-	// Pipeline Layout
-	vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-	pipelineLayoutCreateInfo.setSetLayoutCount(descriptorLayouts.size());
-	pipelineLayoutCreateInfo.setSetLayouts(descriptorLayouts);
-	pipelineLayoutCreateInfo.setPushConstantRanges(createInfo.pushConstant);
+	vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+	pipelineLayoutCreateInfo.setSetLayoutCount(1);
+	pipelineLayoutCreateInfo.setSetLayouts(cubeMapLayout);
 	pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
+	pipelineLayoutCreateInfo.setPushConstantRanges(createInfo.pushConstant);
 
 	pipelineLayout = createInfo.device.createPipelineLayout(pipelineLayoutCreateInfo);
 
@@ -170,15 +136,13 @@ void PBRPipeline::create(const PBRPipelineCreateInfo &createInfo)
 	destroyShaderModules(createInfo.device);
 }
 
-void PBRPipeline::destroy(const vk::Device &device)
+void SkyboxPipeline::destroy(const vk::Device &device)
 {
-	device.destroyDescriptorSetLayout(textureSetLayout);
-	device.destroyDescriptorSetLayout(renderInfoLayout);
 	device.destroyPipelineLayout(pipelineLayout);
 	device.destroyPipeline(pipeline);
 }
 
-void PBRPipeline::createShaderModules(const PBRPipelineCreateInfo &createInfo)
+void SkyboxPipeline::createShaderModules(const SkyboxPipelineCreateInfo &createInfo)
 {
 	vk::ShaderModuleCreateInfo vertexShaderModuleCreateInfo;
 	vertexShaderModuleCreateInfo.setCode(createInfo.vertexShaderCode);
@@ -192,7 +156,7 @@ void PBRPipeline::createShaderModules(const PBRPipelineCreateInfo &createInfo)
 	fragmentShader = createInfo.device.createShaderModule(fragmentShaderModuleCreateInfo);
 }
 
-void PBRPipeline::destroyShaderModules(const vk::Device &device)
+void SkyboxPipeline::destroyShaderModules(const vk::Device &device)
 {
 	device.destroyShaderModule(vertexShader);
 	device.destroyShaderModule(fragmentShader);

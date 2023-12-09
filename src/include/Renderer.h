@@ -14,6 +14,7 @@
 #include "Model.h"
 #include "PBRPipeline.h"
 #include "RenderPass.h"
+#include "SkyboxPipeline.h"
 #include "SwapChain.h"
 
 namespace N
@@ -45,6 +46,12 @@ struct ImageObject
 	vk::ImageView imageView;
 };
 
+struct MVPPushConstant {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
+};
+
 class Renderer
 {
   public:
@@ -69,6 +76,7 @@ class Renderer
 	N::RenderPass renderPass;
 	vk::Queue graphicsQueue;
 	N::PBRPipeline pipeline;
+	N::SkyboxPipeline skyboxPipeline;
 	vk::DescriptorPool descriptorPool;
 	vk::CommandPool commandPool;
 
@@ -98,6 +106,8 @@ class Renderer
 
 	ModelSettings modelSettings{{0.f, 5.f, 2.f}, {}};
 	N::MVPPushConstant mvpPushConstant;
+
+	std::vector<uint32_t> loadShaderCode(const char *path);
 
 	void createInstance();
 	void selectPhysicalDevice();

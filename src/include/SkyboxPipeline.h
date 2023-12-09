@@ -1,7 +1,7 @@
 #pragma once
 
+#include <cstdint>
 #include <fstream>
-#include <optional>
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
@@ -12,7 +12,7 @@
 
 namespace N
 {
-struct PBRPipelineCreateInfo
+struct SkyboxPipelineCreateInfo
 {
 	vk::Device device;
 	vk::SampleCountFlagBits samples;
@@ -22,16 +22,16 @@ struct PBRPipelineCreateInfo
 	vk::PushConstantRange pushConstant;
 };
 
-class PBRPipeline
+class SkyboxPipeline
 {
   public:
-	constexpr PBRPipeline() = default;
-	constexpr PBRPipeline(PBRPipeline &rhs) = delete;
-	constexpr PBRPipeline &operator=(PBRPipeline &rhs) = delete;
-	constexpr PBRPipeline(PBRPipeline &&rhs) = default;
-	constexpr PBRPipeline &operator=(PBRPipeline &&rhs) = default;
+	constexpr SkyboxPipeline() = default;
+	constexpr SkyboxPipeline(SkyboxPipeline &rhs) = delete;
+	constexpr SkyboxPipeline &operator=(SkyboxPipeline &rhs) = delete;
+	constexpr SkyboxPipeline(SkyboxPipeline &&rhs) = default;
+	constexpr SkyboxPipeline &operator=(SkyboxPipeline &&rhs) = default;
 
-	void create(const PBRPipelineCreateInfo &createInfo);
+	void create(const SkyboxPipelineCreateInfo &createInfo);
 	void destroy(const vk::Device &device);
 
 	const vk::Pipeline &getPipeline()
@@ -44,26 +44,20 @@ class PBRPipeline
 		return pipelineLayout;
 	}
 
-	const vk::DescriptorSetLayout &getTextureSetLayout()
+	const vk::DescriptorSetLayout &getCubeMapLayout()
 	{
-		return textureSetLayout;
-	}
-
-	const vk::DescriptorSetLayout &getRenderInfoLayout()
-	{
-		return renderInfoLayout;
+		return cubeMapLayout;
 	}
 
   private:
 	vk::Pipeline pipeline;
 	vk::PipelineLayout pipelineLayout;
-	vk::DescriptorSetLayout textureSetLayout;
-	vk::DescriptorSetLayout renderInfoLayout;
+	vk::DescriptorSetLayout cubeMapLayout;
 
 	vk::ShaderModule vertexShader;
 	vk::ShaderModule fragmentShader;
 
-	void createShaderModules(const PBRPipelineCreateInfo &createInfo);
+	void createShaderModules(const SkyboxPipelineCreateInfo &createInfo);
 	void destroyShaderModules(const vk::Device &device);
 };
 } // namespace N
